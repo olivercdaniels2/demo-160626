@@ -2,7 +2,7 @@ services:
   - type: web
     name: demo-160626
     runtime: static
-    staticPublishPath: .
+    staticPublishPath: public
     headers:
       - path: /*
         name: Cache-Control
