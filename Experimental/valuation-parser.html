@@ -1,0 +1,4438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valuation Parser – Albatross Lending</title>
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <!-- Mapbox GL JS loaded inside iframe (api/map-frame.php) to bypass CSP -->
+    <style>
+/* ═══════════════════════════════════════════
+   CSS VARIABLES & RESET
+   ═══════════════════════════════════════════ */
+:root {
+    --bg-dark: #081935;
+    --bg-panel: #0c2249;
+    --bg-input: rgba(255,255,255,.04);
+    --primary: #FFA77D;
+    --secondary: #052463;
+    --text: #e6e9ed;
+    --text-dim: #9da9b9;
+    --highlight: #FFA77D;
+    --grid: #1a3258;
+    --border: #1c3666;
+    --border-focus: #FFA77D;
+    --button: #FFA77D;
+    --positive: #0ecb81;
+    --negative: #f6465d;
+    --radius: 6px;
+    --radius-sm: 4px;
+    --transition: .15s ease;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+*:not(input):not(textarea):not(select) {
+    -webkit-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+}
+
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* ── Header ── */
+.app-header {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 44px; background: #031232;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; z-index: 500;
+}
+.app-header h1 {
+    font-size: 16px; font-weight: 500; color: #fff;
+    letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;
+}
+.app-header-logo { height: 45px; width: auto; flex-shrink: 0; }
+.header-right { display: flex; align-items: center; gap: 14px; }
+.header-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 11px; padding: 5px 14px;
+    border-radius: 3px; cursor: pointer; transition: all var(--transition);
+    text-decoration: none;
+}
+.header-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.tools-menu > .header-btn { height: 26px; display: inline-flex; align-items: center; line-height: 1; }
+
+.header-user {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.header-user:hover { border-color: var(--text-dim); }
+.header-user-menu { position: relative; display: inline-flex; align-items: center; }
+.header-user-menu:hover .header-user-dropdown { display: block; }
+.light-mode .header-user { background: #ffffff; border-color: #c8d4e8; color: #0d1e3d; }
+
+.tools-menu {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.tools-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 150px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    display: none;
+    z-index: 950;
+    padding: 4px;
+}
+.tools-menu:hover .tools-dropdown {
+    display: block;
+}
+.tools-dropdown a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: 3px;
+    color: var(--text-dim);
+    font-size: 11px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.tools-dropdown a:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+}
+
+/* ═══════════════════════════════════════════
+   DROP ZONE  – fullscreen
+   ═══════════════════════════════════════════ */
+.drop-zone {
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: background var(--transition);
+    z-index: 100;
+}
+
+.drop-zone.drag-over {
+    background: rgba(255,255,255,0.04);
+}
+
+.drop-zone-inner {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 18px;
+    pointer-events: none;
+}
+
+.drop-icon {
+    width: 90px; height: 90px;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color var(--transition), transform var(--transition);
+}
+.drag-over .drop-icon {
+    border-color: var(--highlight);
+    transform: scale(1.08);
+}
+.drop-icon svg {
+    width: 40px; height: 40px;
+    color: var(--text-dim);
+    transition: color var(--transition);
+}
+.drag-over .drop-icon svg { color: var(--highlight); }
+
+.drop-label {
+    font-size: 15px; color: var(--text-dim);
+    letter-spacing: 0.3px;
+}
+.drag-over .drop-label { color: var(--text); }
+
+.drop-sublabel {
+    font-size: 11px; color: var(--text-dim); opacity: 0.55;
+    margin-top: -8px;
+}
+
+/* hidden file input */
+.drop-zone input[type="file"] { display: none; }
+
+/* clickable area */
+.drop-click-area {
+    position: absolute; inset: 0;
+    cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════
+   DOCUMENT-TYPE MODAL
+   ═══════════════════════════════════════════ */
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none; align-items: center; justify-content: center;
+    z-index: 700;
+    animation: fadeIn .15s ease;
+}
+.modal-overlay.visible { display: flex; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    width: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    animation: slideUp .2s ease;
+}
+@keyframes slideUp {
+    from { transform: translateY(16px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal-card h2 {
+    font-size: 15px; font-weight: 600; color: var(--text);
+    margin-bottom: 6px;
+}
+.modal-card p {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 18px;
+}
+.modal-card .file-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg-dark); border: 1px solid var(--border);
+    border-radius: 3px; padding: 4px 10px; font-size: 11px;
+    color: var(--highlight); margin-bottom: 16px; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.modal-card .file-chip svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+.modal-card label {
+    display: block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-dim); font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.modal-card select {
+    width: 100%; background: var(--bg-dark); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px;
+    color: var(--text); font-family: inherit; outline: none;
+    cursor: pointer; transition: border-color var(--transition);
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239da9b9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+.modal-card select:focus { border-color: var(--highlight); }
+
+.modal-actions {
+    display: flex; gap: 10px; margin-top: 22px;
+}
+.modal-actions button {
+    flex: 1; padding: 9px 0; border-radius: var(--radius-sm);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    border: none; transition: all var(--transition);
+    font-family: inherit;
+}
+.btn-primary {
+    background: var(--button); color: #031232;
+}
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-secondary {
+    background: transparent; border: 1px solid var(--border) !important;
+    color: var(--text-dim);
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+
+/* ═══════════════════════════════════════════
+   PROCESSING OVERLAY
+   ═══════════════════════════════════════════ */
+.processing-overlay {
+    position: fixed; inset: 0;
+    background: rgba(8,25,53,0.92);
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; gap: 18px;
+    z-index: 800;
+}
+.processing-overlay.visible { display: flex; }
+
+.spinner {
+    width: 42px; height: 42px;
+    border: 3px solid var(--border);
+    border-top-color: var(--highlight);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.processing-sub {
+    font-size: 11px; color: var(--text-dim); margin-top: 6px;
+    letter-spacing: 0.02em;
+}
+.processing-steps {
+    display: flex; gap: 18px; margin-top: 14px;
+}
+.proc-step {
+    font-size: 10px; color: var(--text-dim); opacity: 0.4;
+    display: flex; align-items: center; gap: 5px;
+    transition: all 0.3s ease;
+}
+.proc-step.active { opacity: 1; color: var(--highlight); }
+.proc-step.done { opacity: 1; color: var(--positive); }
+.proc-dot { font-size: 7px; }
+.processing-label {
+    font-size: 13px; color: var(--text-dim); letter-spacing: 0.3px;
+}
+
+/* ═══════════════════════════════════════════
+   PREVIEW PANEL  (floating, pipeline-style)
+   ═══════════════════════════════════════════ */
+.preview-panel {
+    position: fixed;
+    top: 54px;
+    left: 660px;
+    width: min(480px, calc(100vw - 680px));
+    max-height: calc(100vh - 70px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    z-index: 450;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    display: none;
+    overflow: hidden;
+    animation: slideInRight 0.2s ease;
+    resize: both;
+    min-width: 280px; min-height: 200px;
+}
+@keyframes slideInRight {
+    from { transform: translateX(20px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+.preview-panel.visible { display: flex; flex-direction: column; }
+
+/* ── draggable header ── */
+.preview-header {
+    padding: 10px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: grab; flex-shrink: 0;
+}
+.preview-header:active { cursor: grabbing; }
+.preview-header h3 {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+}
+.preview-header .drag-grip {
+    display: flex; flex-wrap: wrap; width: 14px; gap: 3px;
+}
+.preview-header .drag-grip span {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-dim); opacity: .45;
+}
+.preview-header .badge {
+    background: var(--highlight); color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 3px;
+}
+
+.preview-close {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; font-size: 16px;
+    transition: all var(--transition);
+}
+.preview-close:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+.preview-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.preview-upload-btn {
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+.preview-upload-btn:hover {
+    color: var(--text);
+    border-color: var(--highlight);
+}
+
+/* ── image viewport ── */
+.preview-body {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 120px;
+    flex: 1; min-height: 0;
+    padding: 12px;
+    overflow: hidden;
+}
+.preview-body img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius);
+    transition: opacity .2s ease;
+}
+
+/* nav arrows inside preview */
+.preview-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(12,34,73,0.85); border: 1px solid var(--border);
+    border-radius: 50%; color: var(--text-dim);
+    cursor: pointer; font-size: 18px;
+    transition: all var(--transition); z-index: 10;
+}
+.preview-nav:hover { background: var(--bg-panel); color: var(--text); border-color: var(--highlight); }
+.preview-nav.prev { left: 8px; }
+.preview-nav.next { right: 8px; }
+.preview-nav:disabled { opacity: 0.2; cursor: default; pointer-events: none; }
+
+/* page counter pill */
+.preview-page-info {
+    position: absolute; bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(12,34,73,0.85); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 12px;
+    font-size: 10px; color: var(--text-dim);
+    pointer-events: none;
+}
+
+.preview-rotate-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 6px;
+    z-index: 12;
+}
+.preview-rotate-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: rgba(12,34,73,0.9);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all var(--transition);
+}
+.preview-rotate-btn:hover {
+    color: var(--text);
+    border-color: var(--highlight);
+}
+
+/* ── thumbnail strip ── */
+.preview-strip {
+    padding: 8px 12px 10px 12px;
+    background: var(--bg-dark);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px; flex-shrink: 0;
+    overflow-x: auto;
+}
+.preview-strip::-webkit-scrollbar { height: 3px; }
+.preview-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.thumb {
+    width: 48px; height: 48px; flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    border: 2px solid transparent;
+    overflow: hidden; cursor: pointer;
+    opacity: 0.45; transition: all var(--transition);
+}
+.thumb:hover { opacity: 0.75; }
+.thumb.active { opacity: 1; border-color: var(--highlight); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ═══════════════════════════════════════════
+   VALUATION DETAILS PANEL (floating, left side)
+   ═══════════════════════════════════════════ */
+.details-panel {
+    position: fixed;
+    top: 54px;
+    left: 270px;
+    width: min(380px, calc(100vw - 280px));
+    max-height: calc(100vh - 70px);
+    /* full height left column */
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    z-index: 450;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    display: none;
+    overflow: hidden;
+    animation: slideInLeft 0.2s ease;
+    resize: both;
+    min-width: 260px; min-height: 200px;
+}
+@keyframes slideInLeft {
+    from { transform: translateX(-20px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+.details-panel.visible { display: flex; flex-direction: column; }
+
+.details-header {
+    padding: 10px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: grab; flex-shrink: 0;
+}
+.details-header:active { cursor: grabbing; }
+.details-header h3 {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+}
+.details-header .drag-grip {
+    display: flex; flex-wrap: wrap; width: 14px; gap: 3px;
+}
+.details-header .drag-grip span {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-dim); opacity: .45;
+}
+
+.details-close {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; font-size: 16px;
+    transition: all var(--transition);
+}
+.details-close:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+.details-body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    max-height: calc(100vh - 140px);
+    flex: 1;
+}
+.details-body::-webkit-scrollbar { width: 4px; }
+.details-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.details-section-title {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--highlight);
+    margin-top: 14px; margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+}
+.details-section-title:first-child { margin-top: 0; }
+
+.details-row {
+    display: flex; justify-content: space-between;
+    padding: 5px 0; font-size: 11px;
+    border-bottom: 1px dotted rgba(28,54,102,0.4);
+    gap: 12px;
+}
+.details-row:last-child { border-bottom: none; }
+.details-label { color: var(--text-dim); white-space: nowrap; }
+.details-value { color: var(--text); font-weight: 500; text-align: right; }
+.details-value.money { color: var(--text); font-size: 11px; }
+.details-value.null-val { color: var(--text-dim); opacity: .45; font-style: italic; }
+
+/* ── Flags badges ── */
+.flags-row {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 6px 0 2px;
+}
+.flag-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 3px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.flag-badge.warn {
+    background: rgba(246,70,93,0.14); color: var(--negative);
+    border: 1px solid rgba(246,70,93,0.25);
+}
+.flag-badge.info {
+    background: rgba(255,255,255,0.06); color: var(--text);
+    border: 1px solid var(--border);
+}
+.flag-badge.good {
+    background: rgba(14,203,129,0.10); color: var(--positive);
+    border: 1px solid rgba(14,203,129,0.22);
+}
+.flag-badge svg { width: 11px; height: 11px; }
+
+/* ── Flags title row with toggle ── */
+.flags-title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-right: 2px;
+}
+.flags-toggle-wrap {
+    display: flex; align-items: center; gap: 6px;
+}
+.flags-toggle-label {
+    font-size: 9px; color: var(--text-dim); letter-spacing: 0.3px;
+}
+/* Monday.com toggle */
+.monday-toggle {
+    position: relative; width: 28px; height: 14px;
+    background: var(--border); border-radius: 7px;
+    cursor: pointer; transition: background .2s; flex-shrink: 0;
+    border: none; display: inline-block;
+}
+.monday-toggle.active { background: var(--positive); }
+.monday-toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px; background: #fff;
+    border-radius: 50%; transition: transform .2s;
+}
+.monday-toggle.active::after { transform: translateX(14px); }
+
+/* Case-type badge */
+.case-type-row { padding: 4px 0 6px; }
+.case-type-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 3px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+}
+.case-type-badge.standard { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); }
+.case-type-badge.refurb { background: rgba(255,200,55,0.12); color: #ffc837; border: 1px solid rgba(255,200,55,0.25); }
+.case-type-badge.sme { background: rgba(100,149,237,0.14); color: #6495ed; border: 1px solid rgba(100,149,237,0.25); }
+
+/* Preview empty state */
+.preview-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 40px 20px; color: var(--text-dim);
+}
+.preview-empty svg { width: 40px; height: 40px; opacity: 0.3; }
+.preview-empty span { font-size: 12px; opacity: 0.6; }
+
+.details-summary {
+    font-size: 11px; color: var(--text); line-height: 1.55;
+    margin-top: 4px; margin-bottom: 2px;
+}
+
+/* ── Summary copy button ── */
+.summary-copy-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; padding: 0;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; vertical-align: middle;
+    margin-left: 6px; opacity: 0.5;
+    transition: all var(--transition);
+}
+.summary-copy-btn:hover { opacity: 1; background: rgba(255,255,255,0.06); border-color: var(--border); }
+.summary-bullet-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 3px;
+    background: transparent; border: none;
+    color: var(--text-dim); cursor: pointer;
+    opacity: 0.5; transition: all var(--transition);
+    vertical-align: middle; margin-left: 2px;
+}
+.summary-bullet-btn svg { width: 13px; height: 13px; }
+.summary-bullet-btn:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+.summary-bullet-btn.active { opacity: 1; color: var(--text); background: rgba(255,255,255,0.08); }
+.summary-bullets {
+    margin: 0; padding: 0 0 0 16px; list-style: disc;
+}
+.summary-bullets li {
+    margin-bottom: 4px; line-height: 1.5;
+}
+.summary-copy-btn svg { width: 11px; height: 11px; }
+.summary-copy-btn.copied { color: var(--positive); opacity: 1; }
+
+/* ── Address subtitle in details header ── */
+.details-address {
+    font-size: 10px; color: var(--text-dim); font-weight: 400;
+    letter-spacing: 0.2px; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 280px;
+}
+
+/* ═══════════════════════════════════════════
+   COMPARABLES PANEL
+   ═══════════════════════════════════════════ */
+.comps-panel {
+    position: fixed;
+    bottom: 10px;
+    left: max(270px, min(660px, 25vw + 260px));
+    right: min(580px, 36vw);
+    width: auto;
+    max-height: calc(50vh - 32px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    z-index: 440;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    display: none;
+    overflow: hidden;
+    animation: slideInRight 0.2s ease;
+    resize: both;
+    min-width: 300px; min-height: 150px;
+}
+.comps-panel.visible { display: flex; flex-direction: column; }
+
+.comps-header {
+    padding: 10px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: grab; flex-shrink: 0;
+}
+.comps-header:active { cursor: grabbing; }
+.comps-header h3 {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+}
+.comps-header .drag-grip {
+    display: flex; flex-wrap: wrap; width: 14px; gap: 3px;
+}
+.comps-header .drag-grip span {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-dim); opacity: .45;
+}
+.comps-header .badge {
+    background: var(--highlight); color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 3px;
+}
+.comps-close {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; font-size: 16px;
+    transition: all var(--transition);
+}
+.comps-close:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+.comps-body {
+    overflow: auto; flex: 1;
+}
+.comps-body::-webkit-scrollbar { width: 4px; height: 4px; }
+.comps-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.comps-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 10px;
+}
+.comps-table thead {
+    position: sticky; top: 0; z-index: 2;
+}
+.comps-table th {
+    background: var(--bg-dark); color: var(--text-dim);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    font-size: 9px; padding: 7px 10px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.comps-table td {
+    padding: 6px 10px; border-bottom: 1px solid rgba(28,54,102,0.3);
+    color: var(--text); white-space: nowrap;
+}
+.comps-table tr:last-child td { border-bottom: none; }
+.comps-table tr:hover td { background: rgba(255,255,255,0.02); }
+.comps-table tr.comp-clickable { cursor: pointer; }
+.comps-table tr.comp-clickable:hover td { background: rgba(255,255,255,0.05); }
+.comps-table .subject-row td {
+    background: rgba(255,255,255,0.04);
+    font-weight: 600;
+    border-bottom: 2px solid var(--text-dim);
+}
+.comps-table .average-row td {
+    background: rgba(100,149,237,0.08);
+    font-weight: 600;
+}
+.comps-table .adj-positive { color: var(--positive); }
+.comps-table .adj-negative { color: var(--negative); }
+
+/* Coord verification badges in comp table */
+.coord-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%;
+    font-size: 8px; font-weight: 700; line-height: 1;
+    margin-right: 4px; vertical-align: middle;
+    cursor: help; flex-shrink: 0;
+}
+.coord-ok   { background: rgba(78,205,196,0.18); color: #4ecdc4; }
+.coord-warn { background: rgba(255,193,7,0.18); color: #ffc107; }
+.coord-none { background: rgba(157,169,185,0.12); color: #6b7a8d; }
+
+/* No-comps map overlay */
+.map-no-comps {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 8; background: rgba(8,25,53,0.88); border: 1px solid #1c3666;
+    border-radius: 6px; padding: 8px 16px; color: #9da9b9;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+    backdrop-filter: blur(6px); pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════
+   MAP PANEL
+   ═══════════════════════════════════════════ */
+.map-panel {
+    position: fixed;
+    top: 54px;
+    right: 10px;
+    width: min(560px, 35vw);
+    height: calc(100vh - 68px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    z-index: 440;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    display: none;
+    overflow: hidden;
+    animation: slideInLeft 0.2s ease;
+    resize: both;
+    min-width: 300px; min-height: 250px;
+}
+.map-panel.visible { display: flex; flex-direction: column; }
+
+.map-header {
+    padding: 10px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: grab; flex-shrink: 0;
+}
+.map-header:active { cursor: grabbing; }
+.map-header h3 {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+}
+.map-header .drag-grip {
+    display: flex; flex-wrap: wrap; width: 14px; gap: 3px;
+}
+.map-header .drag-grip span {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-dim); opacity: .45;
+}
+.map-close {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; font-size: 16px;
+    transition: all var(--transition);
+}
+.map-close:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+#mapContainer {
+    flex: 1; min-height: 0;
+    position: relative;
+}
+
+/* ── Map toolbar (toggles) ── */
+.map-toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.map-toggle-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 3px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+    font-family: inherit; cursor: pointer;
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-dim);
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+.map-toggle-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.map-toggle-btn.active {
+    background: rgba(255,255,255,0.08); color: var(--text);
+    border-color: var(--border);
+}
+.map-toggle-btn svg { width: 11px; height: 11px; }
+.map-toggle-sep {
+    width: 1px; height: 18px; background: var(--border); margin: 0 4px;
+}
+
+.map-gmaps-btn {
+    position: absolute; bottom: 12px; left: 12px; z-index: 5;
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border-radius: 4px;
+    background: var(--bg-dark); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 10px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    text-decoration: none;
+    transition: all var(--transition);
+}
+.map-gmaps-btn:hover { background: var(--bg-panel); color: var(--text); border-color: var(--highlight); }
+.map-gmaps-btn svg { width: 12px; height: 12px; }
+
+/* ── Mapbox popup overrides ── */
+.mapboxgl-popup-content {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    padding: 8px 10px !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+    max-width: 220px !important;
+    min-width: 140px !important;
+}
+.mapboxgl-popup-content .comp-popup-title {
+    font-size: 10px; font-weight: 600; color: var(--text);
+    margin-bottom: 4px; line-height: 1.3;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.mapboxgl-popup-content .comp-popup-row {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: 9px; padding: 1px 0; color: var(--text-dim);
+}
+.mapboxgl-popup-content .comp-popup-row .val {
+    color: var(--text); font-weight: 500;
+}
+.mapboxgl-popup-tip {
+    border-top-color: var(--bg-panel) !important;
+    border-bottom-color: var(--bg-panel) !important;
+}
+
+/* ── Mapbox nav control styling ── */
+.mapboxgl-ctrl-group {
+    background: var(--bg-dark) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+.mapboxgl-ctrl-group button {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border) !important;
+    width: 30px !important; height: 30px !important;
+}
+.mapboxgl-ctrl-group button:last-child { border-bottom: none !important; }
+.mapboxgl-ctrl-group button:hover { background: rgba(255,255,255,0.06) !important; }
+.mapboxgl-ctrl-group button .mapboxgl-ctrl-icon {
+    filter: invert(0.65) sepia(0.15) saturate(0.5) brightness(1.3) !important;
+}
+.mapboxgl-ctrl-compass { display: none !important; }
+
+/* ── Comps section subtitle ── */
+.comps-section-label {
+    font-size: 9px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--text-dim);
+    padding: 8px 10px 4px; background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+}
+
+/* loading skeleton inside details */
+.details-loading {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 8px 0;
+}
+.skel-row {
+    display: flex; justify-content: space-between; gap: 20px;
+}
+.skel {
+    height: 12px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--border) 25%, rgba(28,54,102,0.6) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease infinite;
+}
+.skel.w40 { width: 40%; }
+.skel.w30 { width: 30%; }
+.skel.w60 { width: 60%; }
+.skel.w100 { width: 100%; height: 10px; }
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ═══════════════════════════════════════════
+   TOAST NOTIFICATION
+   ═══════════════════════════════════════════ */
+.toast {
+    position: fixed; top: 54px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px;
+    font-size: 11px; color: var(--text); z-index: 99999;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    display: none; animation: slideInDown .2s ease;
+    max-width: 320px;
+}
+.toast.visible { display: flex; align-items: center; gap: 8px; }
+.toast.success { border-left: 3px solid var(--positive); }
+.toast.error   { border-left: 3px solid var(--negative); }
+.toast.info    { border-left: 3px solid #3498db; }
+@keyframes slideInDown {
+    from { transform: translateX(-50%) translateY(-10px); opacity: 0; }
+    to   { transform: translateX(-50%) translateY(0);     opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════
+   CUSTOM CONTEXT MENU
+   ═══════════════════════════════════════════ */
+.img-ctx-menu {
+    position: fixed; z-index: 99999;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 0; min-width: 170px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5); display: none;
+}
+.img-ctx-menu.visible { display: block; }
+.img-ctx-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; cursor: pointer;
+    color: var(--text-dim); font-size: 11px;
+    transition: all var(--transition); border: none; background: none; width: 100%;
+    text-align: left; white-space: nowrap;
+}
+.img-ctx-item:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.img-ctx-sep { height: 1px; background: var(--border); margin: 3px 8px; }
+
+/* ── scrollbar global ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── resize handle ── */
+::-webkit-resizable { background: transparent; }
+.preview-panel::-webkit-resizer,
+.details-panel::-webkit-resizer,
+.comps-panel::-webkit-resizer,
+.map-panel::-webkit-resizer,
+.fp-panel::-webkit-resizer {
+    background: linear-gradient(135deg, transparent 60%, var(--text-dim) 60%, var(--text-dim) 65%, transparent 65%, transparent 75%, var(--text-dim) 75%, var(--text-dim) 80%, transparent 80%);
+    opacity: 0.35;
+}
+
+/* ═══════════════════════════════════════════
+   RECENT VALUATIONS SIDEBAR
+   ═══════════════════════════════════════════ */
+.sidebar {
+    position: fixed;
+    top: 44px; left: 0; bottom: 0;
+    width: 260px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    z-index: 460;
+    display: flex; flex-direction: column;
+    overflow: visible;
+    transition: transform .2s ease;
+}
+.sidebar > .sidebar-list { overflow-y: auto; flex: 1; min-height: 0; }
+.sidebar-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-dark);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-header h3 {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 8px;
+}
+.sidebar-count {
+    background: var(--border); color: var(--text-dim);
+    font-size: 9px; font-weight: 700;
+    padding: 1px 6px; border-radius: 3px;
+}
+.sidebar-refresh {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; transition: all var(--transition);
+}
+.sidebar-refresh:hover { background: rgba(255,255,255,0.06); color: var(--text); border-color: var(--border); }
+.sidebar-refresh svg { width: 12px; height: 12px; }
+.sidebar-refresh.spinning svg { animation: spin .6s linear; }
+
+.sidebar-search {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.sidebar-search input {
+    width: 100%; background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px; font-size: 11px;
+    color: var(--text); font-family: inherit;
+    outline: none; transition: border-color var(--transition);
+}
+.sidebar-search input:focus { border-color: var(--highlight); }
+.sidebar-search input::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+.sidebar-upload {
+    margin: 0 12px 8px;
+    padding: 8px 10px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.02);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all var(--transition);
+    flex-shrink: 0;
+}
+.sidebar-upload svg { width: 14px; height: 14px; flex-shrink: 0; }
+.sidebar-upload:hover,
+.sidebar-upload.drag-over {
+    border-color: var(--text-dim);
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+}
+
+.sidebar-list {
+    flex: 1; overflow-y: auto; padding: 0;
+}
+.sidebar-item {
+    display: block; padding: 10px 14px;
+    border-bottom: 1px solid rgba(28,54,102,0.25);
+    cursor: pointer; transition: background var(--transition);
+    border-left: 3px solid transparent;
+}
+.sidebar-item:hover { background: rgba(255,255,255,0.03); }
+.sidebar-item.active {
+    background: rgba(255,255,255,0.06);
+    border-left-color: var(--text-dim);
+}
+.sidebar-item-address {
+    font-size: 11px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 3px; line-height: 1.3;
+}
+.sidebar-item-file {
+    font-size: 9px; color: var(--text-dim); opacity: 0.6;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+.sidebar-item-meta {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 9px; color: var(--text-dim);
+}
+.sidebar-item-value { color: var(--highlight); font-weight: 600; }
+.sidebar-item-type {
+    padding: 1px 5px; border-radius: 2px;
+    font-size: 8px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.3px;
+}
+.sidebar-item-type.standard { background: rgba(255,255,255,0.06); color: var(--text); }
+.sidebar-item-type.refurb { background: rgba(255,200,55,0.12); color: #ffc837; }
+.sidebar-item-type.sme { background: rgba(100,149,237,0.14); color: #6495ed; }
+
+.sidebar-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; padding: 40px 20px; color: var(--text-dim);
+}
+.sidebar-empty svg { width: 32px; height: 32px; opacity: 0.3; }
+.sidebar-empty span { font-size: 11px; opacity: 0.6; text-align: center; }
+
+.sidebar-loading { padding: 14px; }
+.sidebar-loading .skel-item {
+    margin-bottom: 14px;
+    padding: 0 2px;
+}
+
+/* ── Shift main content for sidebar ── */
+.drop-zone { left: 260px; }
+
+/* ── Case Linking (bottom of sidebar) ── */
+.sidebar-case-section {
+    flex-shrink: 0; border-top: 1px solid var(--border);
+    background: var(--bg-dark); padding: 10px 10px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 50%; overflow-y: auto;
+}
+.sidebar-case-section::-webkit-scrollbar { width: 4px; }
+.sidebar-case-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sidebar-case-section h4 {
+    font-size: 10px; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--highlight); margin-bottom: 2px;
+}
+.val-case-search-wrap { position: relative; }
+.val-case-search-wrap svg.vcs-icon {
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    width: 13px; height: 13px; color: var(--text-dim); pointer-events: none;
+}
+.val-case-search-input {
+    width: 100%; background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 7px 10px 7px 28px;
+    font-size: 11px; color: var(--text); font-family: inherit; outline: none;
+    transition: border-color var(--transition); box-sizing: border-box;
+}
+.val-case-search-input::placeholder { color: var(--text-dim); opacity: 0.6; }
+.val-case-search-input:focus { border-color: var(--highlight); }
+.val-case-search-clear {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border: none; background: transparent;
+    color: var(--text-dim); cursor: pointer; font-size: 15px;
+    display: none; align-items: center; justify-content: center; border-radius: 2px;
+}
+.val-case-search-clear.visible { display: flex; }
+.val-case-search-clear:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.val-case-search-results {
+    position: fixed;
+    max-height: 200px; overflow-y: auto;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-bottom: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.35); z-index: 9999; display: none;
+}
+.val-case-search-results.visible { display: block; }
+.val-case-search-results::-webkit-scrollbar { width: 4px; }
+.val-case-search-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.val-case-result-item {
+    padding: 8px 10px; cursor: pointer;
+    border-bottom: 1px solid rgba(28,54,102,0.3); transition: background var(--transition);
+}
+.val-case-result-item:hover { background: rgba(255,255,255,0.04); }
+.val-case-result-item:last-child { border-bottom: none; }
+.val-case-result-borrower { font-size: 11px; font-weight: 600; color: var(--text); }
+.val-case-result-detail { font-size: 9px; color: var(--text-dim); margin-top: 1px; }
+.val-case-result-source {
+    font-size: 8px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 1px 5px; border-radius: 2px;
+    display: inline-block; margin-top: 2px;
+}
+.val-case-result-source.pipeline { background: rgba(255,255,255,0.06); color: var(--text); }
+.val-case-result-source.case { background: rgba(100,149,237,0.12); color: #6495ed; }
+.val-linked-case {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; background: var(--bg-panel);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 11px; color: var(--text);
+}
+.val-linked-case .vlc-icon {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(14,203,129,0.1); border: 1px solid rgba(14,203,129,0.25);
+    display: flex; align-items: center; justify-content: center;
+}
+.val-linked-case .vlc-icon svg { width: 12px; height: 12px; color: var(--positive); }
+.val-linked-case .vlc-info { flex: 1; min-width: 0; }
+.val-linked-case .vlc-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.val-linked-case .vlc-detail { font-size: 9px; color: var(--text-dim); margin-top: 1px; }
+.val-linked-case .vlc-clear {
+    width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 14px; border-radius: 2px; flex-shrink: 0;
+}
+.val-linked-case .vlc-clear:hover { color: var(--negative); background: rgba(246,70,93,0.1); }
+.vlc-open {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; font-weight: 600; color: var(--highlight);
+    text-decoration: none; margin-top: 3px; opacity: 0.7;
+    transition: opacity var(--transition);
+}
+.vlc-open:hover { opacity: 1; text-decoration: underline; }
+.sidebar-item-case-link {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 9px; font-weight: 600; color: #6495ed;
+    text-decoration: none; padding: 2px 0 0; opacity: 0.7;
+    transition: opacity var(--transition);
+}
+.sidebar-item-case-link svg { width: 10px; height: 10px; flex-shrink: 0; }
+.sidebar-item-case-link:hover { opacity: 1; text-decoration: underline; }
+.val-selected-cases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.val-selected-case-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px 3px 8px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 9px;
+    color: var(--text);
+    font-weight: 600;
+    max-width: 100%;
+}
+.val-selected-case-tag span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.val-selected-case-tag button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.val-selected-case-tag button:hover { color: var(--negative); }
+.val-link-btn {
+    width: 100%; padding: 8px; border-radius: var(--radius-sm);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    border: none; transition: all var(--transition); font-family: inherit;
+    background: var(--button); color: #031232;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.val-link-btn:hover { filter: brightness(1.1); }
+.val-link-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+
+/* ═══════════════════════════════════════════
+   FLOORPLAN PANEL
+   ═══════════════════════════════════════════ */
+.fp-panel {
+    position: fixed;
+    top: 54px;
+    left: 660px;
+    width: min(520px, calc(100vw - 680px));
+    max-height: calc(100vh - 70px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    z-index: 455;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    display: none;
+    overflow: hidden;
+    animation: slideInRight 0.2s ease;
+    resize: both;
+    min-width: 300px; min-height: 250px;
+}
+.fp-panel.visible { display: flex; flex-direction: column; }
+
+.fp-header {
+    padding: 10px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: grab; flex-shrink: 0;
+}
+.fp-header:active { cursor: grabbing; }
+.fp-header h3 {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+}
+.fp-header .drag-grip {
+    display: flex; flex-wrap: wrap; width: 14px; gap: 3px;
+}
+.fp-header .drag-grip span {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--text-dim); opacity: .45;
+}
+.fp-header .badge {
+    background: var(--highlight); color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 3px;
+}
+.fp-close {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none;
+    color: var(--text-dim); cursor: pointer;
+    border-radius: 3px; font-size: 16px;
+    transition: all var(--transition);
+}
+.fp-close:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+/* Toolbar with floorplan nav */
+.fp-toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.fp-toolbar .fp-page-label {
+    font-size: 10px; color: var(--text-dim); font-weight: 600;
+    letter-spacing: 0.3px;
+}
+.fp-toolbar .fp-nav-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 3px;
+    font-size: 10px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-dim); transition: all var(--transition);
+}
+.fp-toolbar .fp-nav-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.fp-toolbar .fp-nav-btn:disabled { opacity: 0.2; pointer-events: none; }
+
+/* SVG / raster viewport */
+.fp-viewport {
+    flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    overflow: auto;
+    background: #ffffff;
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+.fp-viewport svg {
+    max-width: 100%; max-height: 100%;
+    display: block;
+}
+.fp-viewport img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    /* Stylise the raster fallback to match SVG appearance */
+    filter: contrast(1.4) brightness(1.05) grayscale(0.2);
+}
+/* Empty state */
+.fp-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 40px 20px; color: var(--text-dim);
+}
+.fp-empty svg { width: 36px; height: 36px; opacity: 0.3; }
+.fp-empty span { font-size: 11px; }
+
+
+/* ═══════════════════════════════════════════
+   LIGHT MODE THEME
+   ═══════════════════════════════════════════ */
+:root.light-mode {
+    --bg-dark:   #ffffff;
+    --bg-panel:  #ffffff;
+    --bg-input:  #ffffff;
+    --text:      #0d1e3d;
+    --text-dim:  #5a6e8c;
+    --border:    #c8d4e8;
+    --grid:      #e8eef8;
+    --secondary: #ffffff;
+    --primary:      #0d1e3d;
+    --highlight:    #0d1e3d;
+    --border-focus: #0d1e3d;
+    --button:       #0d1e3d;
+}
+
+/* Header */
+.light-mode .app-header { background: #ffffff; border-bottom-color: var(--border); box-shadow: none; }
+.light-mode .app-header-logo { content: url('../al_logo_blue.png'); height: 30px; }
+.light-mode .app-header h1 { color: var(--text); }
+
+/* Hover states — flip rgba(255,255,255,...) to rgba(0,0,0,...) */
+.light-mode .header-btn:hover { background: rgba(0,0,0,0.05); color: var(--text); }
+.light-mode .tools-dropdown { background: #ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+.light-mode .tools-dropdown a:hover { background: rgba(0,0,0,0.05); color: var(--text); }
+.light-mode .btn-secondary:hover { background: rgba(0,0,0,0.04); }
+.light-mode .preview-close:hover { background: rgba(0,0,0,0.08); }
+.light-mode .details-close:hover { background: rgba(0,0,0,0.08); }
+.light-mode .summary-copy-btn:hover { background: rgba(0,0,0,0.06); }
+.light-mode .summary-bullet-btn:hover { background: rgba(0,0,0,0.08); }
+.light-mode .comps-close:hover { background: rgba(0,0,0,0.08); }
+.light-mode .comps-table tr:hover td { background: rgba(0,0,0,0.02); }
+.light-mode .map-close:hover { background: rgba(0,0,0,0.08); }
+.light-mode .map-toggle-btn:hover { background: rgba(0,0,0,0.06); }
+.light-mode .mapboxgl-ctrl-group button:hover { background: rgba(0,0,0,0.06) !important; }
+.light-mode .img-ctx-item:hover { background: rgba(0,0,0,0.06); }
+.light-mode .sidebar-refresh:hover { background: rgba(0,0,0,0.06); }
+.light-mode .sidebar-upload { background: rgba(0,0,0,0.02); }
+.light-mode .sidebar-item:hover { background: rgba(0,0,0,0.03); }
+.light-mode .sidebar-item.active { background: rgba(0,0,0,0.04); border-left-color: var(--text-dim); }
+.light-mode .map-toggle-btn.active { background: rgba(0,0,0,0.06); }
+.light-mode .summary-bullet-btn.active { background: rgba(0,0,0,0.06); }
+.light-mode .flag-badge.info { background: rgba(0,0,0,0.04); }
+.light-mode .case-type-badge.standard { background: rgba(0,0,0,0.04); }
+.light-mode .sidebar-item-type.standard { background: rgba(0,0,0,0.04); }
+.light-mode .comps-table .subject-row td { background: rgba(0,0,0,0.03); }
+.light-mode .comps-table tr.comp-clickable:hover td { background: rgba(0,0,0,0.04); }
+.light-mode .val-case-result-item:hover { background: rgba(0,0,0,0.04); }
+.light-mode .val-case-result-source.pipeline { background: rgba(0,0,0,0.04); }
+.light-mode .val-selected-case-tag { background: rgba(0,0,0,0.04); }
+.light-mode .val-case-search-clear:hover { background: rgba(0,0,0,0.06); }
+.light-mode .fp-close:hover { background: rgba(0,0,0,0.08); }
+.light-mode .fp-toolbar .fp-nav-btn:hover { background: rgba(0,0,0,0.06); }
+
+/* Hardcoded backgrounds */
+.light-mode .processing-overlay { background: rgba(245,246,248,0.94); backdrop-filter: blur(4px); }
+.light-mode .processing-overlay .spinner { border-color: var(--border); border-top-color: var(--highlight); }
+.light-mode .modal-overlay { background: rgba(0,0,0,0.3); }
+.light-mode .preview-nav { background: rgba(200,212,232,0.85); }
+.light-mode .preview-page-info { background: rgba(200,212,232,0.85); }
+.light-mode .preview-rotate-btn { background: rgba(200,212,232,0.9); }
+.light-mode .skel { background: linear-gradient(90deg, var(--border) 25%, rgba(200,212,232,0.6) 50%, var(--border) 75%); }
+
+/* Borders */
+.light-mode .details-row { border-bottom-color: rgba(0,0,0,0.1); }
+.light-mode .comps-table td { border-bottom-color: rgba(0,0,0,0.08); }
+.light-mode .coord-ok   { background: rgba(13,148,136,0.12); color: #0d9488; }
+.light-mode .coord-warn { background: rgba(245,158,11,0.12); color: #d97706; }
+.light-mode .coord-none { background: rgba(0,0,0,0.05); color: #7c8da4; }
+.light-mode .map-no-comps {
+    background: rgba(255,255,255,0.92); border-color: #c8d4e8; color: #5a6e8c;
+}
+.light-mode .sidebar-item { border-bottom-color: rgba(0,0,0,0.06); }
+.light-mode .val-case-result-item { border-bottom-color: rgba(0,0,0,0.08); }
+
+/* Box shadows — lighten */
+.light-mode .modal-card { box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+.light-mode .preview-panel { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.light-mode .details-panel { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.light-mode .comps-panel { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.light-mode .map-panel { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.light-mode .mapboxgl-popup-content { box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important; }
+.light-mode .mapboxgl-ctrl-group { box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important; }
+.light-mode .toast { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.light-mode .img-ctx-menu { box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+.light-mode .val-case-search-results { box-shadow: 0 -6px 20px rgba(0,0,0,0.1); }
+.light-mode .fp-panel { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+
+/* Text on navy buttons — needs white */
+.light-mode .btn-primary { color: #fff; }
+.light-mode .comps-view-btn { color: #fff; }
+.light-mode .map-view-btn { color: #fff; }
+
+/* Inputs */
+.light-mode .field input,
+.light-mode .field textarea,
+.light-mode .field select { background: #ffffff; color: var(--text); }
+.light-mode select { color-scheme: light; }
+.light-mode input[type="date"] { color-scheme: light; }
+
+/* Mapbox controls */
+.light-mode .mapboxgl-ctrl-group { background: #ffffff !important; }
+.light-mode .mapboxgl-ctrl-group button { color: var(--text) !important; }
+
+/* ── Theme toggle icon visibility ── */
+#theme-toggle-btn .icon-sun  { display: block; }
+#theme-toggle-btn .icon-moon { display: none;  }
+.light-mode #theme-toggle-btn .icon-sun  { display: none;  }
+.light-mode #theme-toggle-btn .icon-moon { display: block; }
+    </style>
+
+<!-- Theme: read saved preference and apply immediately -->
+<script>
+(function(){
+    document.documentElement.classList.add('light-mode');
+    try {
+        var auth = JSON.parse(sessionStorage.getItem('albatross_device_auth') || '{}');
+        var email = String(auth.email || auth.user_email || (auth.user && auth.user.email) || '').trim().toLowerCase();
+        var key = email ? 'ipm_theme:' + email : '';
+        var saved = (key && localStorage.getItem(key)) || localStorage.getItem('ipm_theme');
+        if (saved === 'dark') document.documentElement.classList.remove('light-mode');
+    } catch(e) {}
+})();
+function toggleLightMode() {
+    var isLight = !document.documentElement.classList.contains('light-mode');
+    if (isLight) { document.documentElement.classList.add('light-mode'); }
+    else { document.documentElement.classList.remove('light-mode'); }
+    var btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+    try {
+        var auth = JSON.parse(sessionStorage.getItem('albatross_device_auth') || '{}');
+        var email = String(auth.email || auth.user_email || (auth.user && auth.user.email) || '').trim().toLowerCase();
+        var key = email ? 'ipm_theme:' + email : 'ipm_theme';
+        localStorage.setItem(key, isLight ? 'light' : 'dark');
+        localStorage.setItem('ipm_theme', isLight ? 'light' : 'dark');
+    } catch(e) {}
+}
+</script>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="app-header">
+    <h1>
+        <img src="../albatross-logo.png" alt="" class="app-header-logo">
+        Valuation Parser
+    </h1>
+    <div class="header-right">
+        <div class="header-user-menu">
+            <span class="header-user" id="header-user-display" title="Account">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:-2px;margin-right:4px;"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 2.5-5 6-5s6 2 6 5"/></svg>
+                <span id="header-user-name">User</span>
+            </span>
+            <div class="tools-dropdown header-user-dropdown">
+                <a href="#" onclick="logoutFromHeader(); return false;">Log out</a>
+            </div>
+        </div>
+        <button class="header-btn" id="theme-toggle-btn" onclick="toggleLightMode()" title="Switch to light mode" style="padding:5px 9px;display:flex;align-items:center;">
+            <svg class="icon-sun" width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
+            <svg class="icon-moon" width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
+        </button>
+        <a href="../pipeline.html" class="header-btn">Pipeline</a>
+        <a href="../loan-management.html" class="header-btn">Loan Book</a>
+        <a href="../case-management.html" class="header-btn">Case Management</a>
+        <div class="tools-menu" id="tools-menu-wrap" style="display:none;">
+            <button class="header-btn" type="button">Tools</button>
+            <div class="tools-dropdown">
+                <a href="valuation-parser.html" class="current">Valuation Parser</a>
+                <a href="../credit-paper.html">Credit Paper</a>
+                <a href="borrower-profile.html">Borrower Profile</a>
+                <a href="../activity-monitor.html">Activity Monitor</a>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- ═══ RECENT VALUATIONS SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3>
+            Recent
+            <span class="sidebar-count" id="sidebarCount">—</span>
+        </h3>
+        <button class="sidebar-refresh" id="sidebarRefresh" title="Refresh">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+    </div>
+    <div class="sidebar-search">
+        <input type="text" id="sidebarSearch" placeholder="Search address…">
+    </div>
+    <div class="sidebar-list" id="sidebarList">
+        <div class="sidebar-loading" id="sidebarLoading">
+            <div class="skel-item"><div class="skel w60" style="margin-bottom:5px"></div><div class="skel w40"></div></div>
+            <div class="skel-item"><div class="skel w60" style="margin-bottom:5px"></div><div class="skel w30"></div></div>
+            <div class="skel-item"><div class="skel w60" style="margin-bottom:5px"></div><div class="skel w40"></div></div>
+            <div class="skel-item"><div class="skel w60" style="margin-bottom:5px"></div><div class="skel w30"></div></div>
+            <div class="skel-item"><div class="skel w60" style="margin-bottom:5px"></div><div class="skel w40"></div></div>
+        </div>
+    </div>
+    <div class="sidebar-upload" id="sidebarUpload" title="Drop valuation PDF here or click to upload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Drop PDF here or click to upload</span>
+    </div>
+    <div class="sidebar-case-section" id="sidebarCaseSection"></div>
+
+</aside>
+
+<!-- ═══ FULL-SCREEN DROP ZONE ═══ -->
+<div class="drop-zone" id="dropZone">
+    <div class="drop-click-area" id="dropClickArea"></div>
+    <div class="drop-zone-inner">
+        <div class="drop-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+        </div>
+        <div class="drop-label">Drop a  Valuation Report here</div>
+        <div class="drop-sublabel">or click anywhere to browse &middot; PDF only</div>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf,application/pdf">
+</div>
+<input type="file" id="fallbackPhotoInput" accept="image/*" multiple style="display:none">
+
+<!-- ═══ DOCUMENT-TYPE MODAL ═══ -->
+<div class="modal-overlay" id="docTypeModal">
+    <div class="modal-card">
+        <h2>Select Document Type</h2>
+        <p>Confirm the type of document you are uploading so the correct parser is applied.</p>
+        <div class="file-chip" id="fileChip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span id="fileChipName">file.pdf</span>
+        </div>
+        <label for="docTypeSelect">Document Type</label>
+        <select id="docTypeSelect">
+            <option value="valuation_report">Valuation Report</option>
+        </select>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="cancelUpload()">Cancel</button>
+            <button class="btn-primary" onclick="confirmUpload()">Run</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="inlineConfirmModal">
+    <div class="modal-card">
+        <h2>Confirm</h2>
+        <p id="inlineConfirmMsg"></p>
+        <div class="modal-actions">
+            <button class="btn-secondary" type="button" id="inlineConfirmCancel">Cancel</button>
+            <button class="btn-primary" type="button" id="inlineConfirmOk">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ PROCESSING OVERLAY ═══ -->
+<div class="processing-overlay" id="processingOverlay">
+    <div class="spinner"></div>
+    <div class="processing-label" id="processingLabel">Analysing valuation report&hellip;</div>
+    <div class="processing-sub" id="processingSub">Uploading PDF&hellip;</div>
+    <div class="processing-steps" id="processingSteps">
+        <div class="proc-step" id="stepUpload"><span class="proc-dot">&#9679;</span> Upload</div>
+        <div class="proc-step" id="stepPhotos"><span class="proc-dot">&#9679;</span> Photos</div>
+        <div class="proc-step" id="stepAI"><span class="proc-dot">&#9679;</span> Ensemble AI</div>
+        <div class="proc-step" id="stepRender"><span class="proc-dot">&#9679;</span> Render</div>
+    </div>
+</div>
+
+<!-- ═══ FLOATING PREVIEW PANEL ═══ -->
+<div class="preview-panel" id="previewPanel">
+    <div class="preview-header" id="previewDragHandle">
+        <h3>
+            <span class="drag-grip"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+            Preview
+            <span class="badge" id="previewCount">0</span>
+        </h3>
+        <div class="preview-header-actions">
+            <button class="preview-upload-btn" id="previewAddPhotosBtn" type="button" title="Add photos manually">+ Photos</button>
+            <button class="preview-close" onclick="closePreview()">&times;</button>
+        </div>
+    </div>
+    <div class="preview-body" id="previewBody">
+        <button class="preview-nav prev" id="navPrev" onclick="navImage(-1)">&#8249;</button>
+        <img id="previewImg" src="" alt="Property photo">
+        <button class="preview-nav next" id="navNext" onclick="navImage(1)">&#8250;</button>
+        <div class="preview-rotate-controls">
+            <button class="preview-rotate-btn" type="button" onclick="rotateCurrentImage(-90)" title="Rotate left">&#8634;</button>
+            <button class="preview-rotate-btn" type="button" onclick="rotateCurrentImage(90)" title="Rotate right">&#8635;</button>
+        </div>
+        <div class="preview-page-info" id="pageInfo">1 / 1</div>
+    </div>
+    <div class="preview-strip" id="thumbStrip"></div>
+</div>
+
+<!-- ═══ VALUATION DETAILS PANEL ═══ -->
+<div class="details-panel" id="detailsPanel">
+    <div class="details-header" id="detailsDragHandle">
+        <h3>
+            <span class="drag-grip"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+            <span>
+                Valuation Details
+                <div class="details-address" id="detailsAddress"></div>
+            </span>
+        </h3>
+        <button class="details-close" onclick="closeDetails()">&times;</button>
+    </div>
+    <div class="details-body" id="detailsBody">
+        <!-- populated by JS -->
+    </div>
+</div>
+
+<!-- ═══ COMPARABLES PANEL ═══ -->
+<div class="comps-panel" id="compsPanel">
+    <div class="comps-header" id="compsDragHandle">
+        <h3>
+            <span class="drag-grip"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+            Comparables
+            <span class="badge" id="compsCount">0</span>
+        </h3>
+        <button class="comps-close" onclick="closeComps()">&times;</button>
+    </div>
+    <div class="comps-body" id="compsBody">
+        <!-- populated by JS -->
+    </div>
+</div>
+
+<!-- ═══ MAP PANEL ═══ -->
+<div class="map-panel" id="mapPanel">
+    <div class="map-header" id="mapDragHandle">
+        <h3>
+            <span class="drag-grip"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+            Location
+        </h3>
+        <button class="map-close" onclick="closeMap()">&times;</button>
+    </div>
+    <div class="map-toolbar" id="mapToolbar">
+        <button class="map-toggle-btn active" id="toggleSaleComps" onclick="toggleMapLayer('sale')">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="5"/></svg>
+            Sale Comps
+        </button>
+        <button class="map-toggle-btn active" id="toggleRentComps" onclick="toggleMapLayer('rent')">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="5"/></svg>
+            Rent Comps
+        </button>
+        <div class="map-toggle-sep"></div>
+        <button class="map-toggle-btn" id="toggle3D" onclick="toggleMap3D()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5"/><path d="M12 12v9"/><path d="M12 12L4 7.5"/></svg>
+            3D
+        </button>
+    </div>
+    <div id="mapContainer"></div>
+</div>
+
+<!-- ═══ FLOORPLAN PANEL ═══ -->
+<div class="fp-panel" id="fpPanel">
+    <div class="fp-header" id="fpDragHandle">
+        <h3>
+            <span class="drag-grip"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+            Floorplan
+            <span class="badge" id="fpCount">0</span>
+        </h3>
+        <button class="fp-close" onclick="closeFloorplan()">&times;</button>
+    </div>
+    <div class="fp-toolbar" id="fpToolbar" style="display:none">
+        <button class="fp-nav-btn" id="fpPrev" onclick="navFloorplan(-1)" disabled>&#8249;</button>
+        <span class="fp-page-label" id="fpPageLabel">1 / 1</span>
+        <button class="fp-nav-btn" id="fpNext" onclick="navFloorplan(1)" disabled>&#8250;</button>
+    </div>
+    <div class="fp-viewport" id="fpViewport"></div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast"><span id="toast-text"></span></div>
+
+<!-- ═══ CUSTOM IMAGE CONTEXT MENU ═══ -->
+<div class="img-ctx-menu" id="imgCtxMenu">
+    <button class="img-ctx-item" onclick="ctxSaveImage()">Save Image</button>
+    <button class="img-ctx-item" onclick="ctxCopyImage()">Copy Image</button>
+    <div class="img-ctx-sep"></div>
+    <button class="img-ctx-item" onclick="ctxSaveAllZip()">Save All Images (ZIP)</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase-client.js"></script>
+<script src="../admin-popup-global.js"></script>
+<script>
+/* ═══════════════════════════════════════════
+   AUTH CHECK
+   ═══════════════════════════════════════════ */
+(function checkAuth() {
+    const auth = sessionStorage.getItem('albatross_device_auth');
+    if (!auth) {
+        window.location.href = '../login.html';
+        return;
+    }
+    let session = {};
+    try { session = JSON.parse(auth || '{}'); } catch (_) {}
+    const isProdAdminBypass = !!(window.albaAuth && typeof window.albaAuth.shouldBypassRedirects === 'function' && window.albaAuth.shouldBypassRedirects(session));
+    // Phase gate: Tools pages require Phase 3+
+    var phase = parseInt(sessionStorage.getItem('albatross_phase') || '1', 10);
+    if (!isProdAdminBypass && phase < 3) { window.location.replace('../case-management.html'); return; }
+})();
+
+function initHeaderUserBadge() {
+    let auth = {};
+    try { auth = JSON.parse(sessionStorage.getItem('albatross_device_auth') || '{}'); } catch (_) {}
+    const nameEl = document.getElementById('header-user-name');
+    if (!nameEl) return;
+    nameEl.textContent = auth.name || auth.user_name || auth.email || 'User';
+}
+
+function logoutFromHeader() {
+    try { sessionStorage.removeItem('albatross_device_auth'); } catch (_) {}
+    window.location.href = '../login.html';
+}
+
+initHeaderUserBadge();
+
+/* ═══════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════ */
+const API_URL = '../api/valuation-parser.php';
+const PROXY_TOKEN = 'alb_prx_42f260bda84f1abaa7d90c10';
+const IMAGE_UPLOAD_MAX_BYTES = 1572864; // 1.5MB
+const IMAGE_UPLOAD_MAX_PER_ADDRESS = 9;
+
+let pendingFile  = null;   // File waiting for doc-type confirmation
+let images       = [];     // [{base64, page, width, height, rotation}]
+let currentIdx   = 0;
+let floorplans   = [];     // [{svg, raster_base64, raster_mime, page, width, height}]
+let fpIdx        = 0;      // Current floorplan index
+
+/* ═══════════════════════════════════════════
+   DROP ZONE
+   ═══════════════════════════════════════════ */
+const dropZone     = document.getElementById('dropZone');
+const fileInput    = document.getElementById('fileInput');
+const dropClick    = document.getElementById('dropClickArea');
+const sidebarUpload = document.getElementById('sidebarUpload');
+const fallbackPhotoInput = document.getElementById('fallbackPhotoInput');
+const previewAddPhotosBtn = document.getElementById('previewAddPhotosBtn');
+
+// Prevent default drag behaviours everywhere
+['dragenter','dragover','dragleave','drop'].forEach(evt => {
+    document.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+});
+
+// Visual feedback on the full page
+document.addEventListener('dragenter', () => dropZone.classList.add('drag-over'));
+document.addEventListener('dragleave', e => {
+    // Only remove if we actually left the window
+    if (e.relatedTarget === null) dropZone.classList.remove('drag-over');
+});
+document.addEventListener('dragover', () => dropZone.classList.add('drag-over'));
+document.addEventListener('drop', e => {
+    dropZone.classList.remove('drag-over');
+    const files = e.dataTransfer?.files;
+    if (files && files.length) handleFile(files[0]);
+});
+
+// Click-to-browse
+dropClick.addEventListener('click', () => fileInput.click());
+if (sidebarUpload) {
+    sidebarUpload.addEventListener('click', () => fileInput.click());
+    ['dragenter', 'dragover'].forEach(evt => {
+        sidebarUpload.addEventListener(evt, e => {
+            e.preventDefault();
+            e.stopPropagation();
+            sidebarUpload.classList.add('drag-over');
+        });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        sidebarUpload.addEventListener(evt, e => {
+            e.preventDefault();
+            e.stopPropagation();
+            sidebarUpload.classList.remove('drag-over');
+            if (evt === 'drop') {
+                const files = e.dataTransfer?.files;
+                if (files && files.length) handleFile(files[0]);
+            }
+        });
+    });
+}
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+if (previewAddPhotosBtn && fallbackPhotoInput) {
+    previewAddPhotosBtn.addEventListener('click', () => fallbackPhotoInput.click());
+    fallbackPhotoInput.addEventListener('change', async () => {
+        const files = Array.from(fallbackPhotoInput.files || []).filter(f => String(f.type || '').startsWith('image/'));
+        if (!files.length) return;
+        const suffix = files.length === 1 ? '' : 's';
+        const ok = await confirmInline(`Add ${files.length} photo${suffix} to this valuation? They will be saved to the image archive and linked case context.`);
+        if (ok) await addManualPhotosToActiveValuation(files, 'upload');
+        fallbackPhotoInput.value = '';
+    });
+}
+
+document.addEventListener('paste', async (e) => {
+    const panelOpen = document.getElementById('previewPanel')?.classList.contains('visible');
+    if (!panelOpen) return;
+
+    const target = e.target;
+    const tag = target && target.tagName ? String(target.tagName).toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || (target && target.isContentEditable)) return;
+
+    const files = [];
+    const items = Array.from(e.clipboardData?.items || []);
+    for (const item of items) {
+        if (item && item.kind === 'file' && String(item.type || '').startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) files.push(file);
+        }
+    }
+    if (!files.length) return;
+
+    e.preventDefault();
+    const msg = files.length === 1
+        ? 'Detected 1 pasted image. Do you wish to add to the case?'
+        : `Detected ${files.length} pasted images. Do you wish to add to the case?`;
+    const ok = await confirmInline(msg);
+    if (!ok) return;
+    await addManualPhotosToActiveValuation(files, 'paste');
+});
+
+function handleFile(file) {
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        showToast('Please drop a PDF file.');
+        return;
+    }
+    pendingFile = file;
+    document.getElementById('fileChipName').textContent = file.name;
+    showModal('docTypeModal');
+}
+
+/* ═══════════════════════════════════════════
+   MODAL HELPERS
+   ═══════════════════════════════════════════ */
+function showModal(id) { document.getElementById(id).classList.add('visible'); }
+function hideModal(id) { document.getElementById(id).classList.remove('visible'); }
+
+let _inlineConfirmResolver = null;
+function closeInlineConfirm(result) {
+    hideModal('inlineConfirmModal');
+    if (_inlineConfirmResolver) {
+        _inlineConfirmResolver(!!result);
+        _inlineConfirmResolver = null;
+    }
+}
+
+function confirmInline(message) {
+    return new Promise(resolve => {
+        _inlineConfirmResolver = resolve;
+        const msgEl = document.getElementById('inlineConfirmMsg');
+        if (msgEl) msgEl.textContent = message || '';
+        showModal('inlineConfirmModal');
+    });
+}
+
+document.getElementById('inlineConfirmOk')?.addEventListener('click', () => closeInlineConfirm(true));
+document.getElementById('inlineConfirmCancel')?.addEventListener('click', () => closeInlineConfirm(false));
+document.getElementById('inlineConfirmModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeInlineConfirm(false);
+});
+
+function cancelUpload() {
+    hideModal('docTypeModal');
+    pendingFile = null;
+    fileInput.value = '';
+}
+
+async function confirmUpload() {
+    if (!pendingFile) return;
+    hideModal('docTypeModal');
+    dropZone.style.display = 'none';
+    showProcessing(true);
+
+    // Build form data once, then clone the file for the second request
+    const file = pendingFile;
+    pendingFile = null;
+    fileInput.value = '';
+
+    // Show skeleton details panel immediately
+    openDetails(null);
+
+    // Fire BOTH requests in parallel — photo extraction + content extraction
+    const photoForm = new FormData();
+    photoForm.append('file', file);
+
+    const analyseForm = new FormData();
+    analyseForm.append('file', file);
+
+    markStep('stepUpload', 'done');
+    markStep('stepPhotos', 'active');
+    markStep('stepAI', 'active');
+    updateProcessingStep('Extracting photos &amp; running ensemble AI&hellip;');
+
+    let extractedPhotoPayload = null;
+    let analysedValuation = null;
+    let analysedValuationId = null;
+
+    const photoPromise = fetch(API_URL + '?mode=extract', {
+        method: 'POST',
+        headers: { 'X-Proxy-Token': PROXY_TOKEN },
+        body: photoForm
+    })
+        .then(r => r.json())
+        .then(data => {
+            extractedPhotoPayload = data;
+            markStep('stepPhotos', 'done');
+            if (data.ok && data.images && data.images.length > 0) {
+                images = (data.images || []).map(img => ({ ...img, rotation: 0 }));
+                currentIdx = 0;
+                openPreview();
+                updateProcessingStep('Photos extracted - awaiting ensemble AI&hellip;');
+            } else {
+                openPreviewEmpty();
+                updateProcessingStep('No photos found - awaiting ensemble AI&hellip;');
+            }
+            // Floorplans come alongside photos from the same extract call
+            if (data.ok && data.floorplans && data.floorplans.length > 0) {
+                console.log('[fp]', data.floorplans.length, 'floorplan(s) extracted');
+                openFloorplan(data.floorplans);
+            }
+        })
+        .catch(err => {
+            markStep('stepPhotos', 'done');
+            openPreviewEmpty();
+            updateProcessingStep('Photo extraction failed - awaiting ensemble AI&hellip;');
+        });
+
+    const analysePromise = fetch(API_URL + '?mode=analyse', {
+        method: 'POST',
+        headers: { 'X-Proxy-Token': PROXY_TOKEN },
+        body: analyseForm
+    })
+        .then(r => r.json())
+        .then(data => {
+            markStep('stepAI', 'done');
+            markStep('stepRender', 'active');
+            updateProcessingStep('Rendering results&hellip;');
+            showProcessing(false);
+            if (data.ok && data.valuation) {
+                analysedValuation = data.valuation;
+                analysedValuationId = data.valuation_id || null;
+                _sidebarActiveId = analysedValuationId;
+                openDetails(data.valuation);
+                openComps(data.valuation);
+                openMap(data.valuation);
+                // Show case-link section for the new valuation
+                _valLinkedCases = [];
+                _valSelectedCases = [];
+                loadValCaseLinks(analysedValuationId, null);
+                // Show ensemble AI metadata if available
+                if (data.ensemble_meta) {
+                    const meta = data.ensemble_meta;
+                    const pct = Math.round((meta.overall_agreement || 0) * 100);
+                    const ok = (meta.models_succeeded || []).length;
+                    const total = (meta.models_used || []).length;
+                    const method = meta.consensus_method || 'unknown';
+                    console.log(`[ensemble] ${ok}/${total} models, ${pct}% agreement, method: ${method}, ${meta.total_latency_ms}ms`);
+                    showToast(`Ensemble AI: ${ok}/${total} models, ${pct}% agreement`, 'info');
+                }
+            } else {
+                openDetails({ error: data.error || 'No valuation data returned.' });
+            }
+            markStep('stepRender', 'done');
+        })
+        .catch(err => {
+            markStep('stepAI', 'done');
+            showProcessing(false);
+            openDetails({ error: 'Analysis failed: ' + (err.message || err) });
+        });
+
+    // Wait for both to settle (don't block UI — updates happen inside each .then)
+    await Promise.allSettled([photoPromise, analysePromise]);
+
+    if (
+        analysedValuation &&
+        extractedPhotoPayload &&
+        extractedPhotoPayload.ok &&
+        Array.isArray(extractedPhotoPayload.images) &&
+        extractedPhotoPayload.images.length > 0
+    ) {
+        persistExtractedImages(analysedValuation, images, analysedValuationId);
+    }
+
+    // Refresh sidebar to include the newly parsed valuation
+    if (analysedValuation && _sbClient) {
+        _sidebarActiveId = analysedValuationId || null;
+        loadRecentValuations();
+    }
+}
+
+async function persistExtractedImages(valuation, extractedImages, valuationId) {
+    try {
+        const address = String((valuation && valuation.address) || '').trim();
+        if (!address) return;
+
+        const cappedInput = extractedImages.slice(0, IMAGE_UPLOAD_MAX_PER_ADDRESS);
+        const prepared = [];
+
+        for (let i = 0; i < cappedInput.length; i++) {
+            const img = cappedInput[i] || {};
+            const b64 = String(img.base64 || '').trim();
+            if (!b64) continue;
+            const rotation = normalizeRotation(img.rotation ?? img.rotation_degrees ?? 0);
+            const rotated = await rotateBase64ImageToOrientation(b64, rotation);
+            if (!rotated) continue;
+            const compressed = await compressBase64ImageToCap(rotated, IMAGE_UPLOAD_MAX_BYTES);
+            if (!compressed) continue;
+            prepared.push({
+                base64: compressed,
+                page: img.page || null,
+                width: img.width || null,
+                height: img.height || null,
+                rotation_degrees: rotation
+            });
+        }
+
+        if (!prepared.length) return;
+
+        const res = await fetch(API_URL + '?mode=upload-images', {
+            method: 'POST',
+            headers: {
+                'X-Proxy-Token': PROXY_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                address,
+                valuation_id: valuationId || null,
+                images: prepared
+            })
+        });
+        const data = await res.json();
+        if (!data || !data.ok) {
+            showToast('Image archive upload failed.');
+            return;
+        }
+
+        if (data.uploaded > 0) {
+            showToast(`Saved ${data.uploaded} valuation image${data.uploaded === 1 ? '' : 's'} to Supabase.`, 'success');
+        }
+    } catch (_) {
+        showToast('Image archive upload unavailable.');
+    }
+}
+
+function getActiveValuationPhotoContext() {
+    const valuation = _lastValuation || null;
+    const valuationId = _sidebarActiveId || null;
+    const address = String((valuation && valuation.address) || '').trim();
+    return { valuation, valuationId, address };
+}
+
+async function fileToImageMeta(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width || 1;
+                canvas.height = img.naturalHeight || img.height || 1;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+                ctx.drawImage(img, 0, 0);
+                const jpgBase64 = (canvas.toDataURL('image/jpeg', 0.92).split(',')[1] || '').trim();
+                if (!jpgBase64) { reject(new Error('Image conversion failed')); return; }
+                resolve({
+                    base64: jpgBase64,
+                    width: canvas.width,
+                    height: canvas.height,
+                    page: null,
+                    rotation_degrees: 0
+                });
+            };
+            img.onerror = () => reject(new Error('Image load failed'));
+            img.src = String(reader.result || '');
+        };
+        reader.onerror = () => reject(new Error('File read failed'));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function addManualPhotosToActiveValuation(fileList, source) {
+    try {
+        const files = Array.from(fileList || []).filter(f => f && String(f.type || '').startsWith('image/'));
+        if (!files.length) {
+            showToast('No valid image files found.', 'error');
+            return;
+        }
+
+        const ctx = getActiveValuationPhotoContext();
+        if (!ctx.address) {
+            showToast('No active valuation address found. Open a valuation first.', 'error');
+            return;
+        }
+
+        const slotsLeft = Math.max(0, IMAGE_UPLOAD_MAX_PER_ADDRESS - (Array.isArray(images) ? images.length : 0));
+        if (slotsLeft <= 0) {
+            showToast('Maximum stored images reached for this address (9).', 'error');
+            return;
+        }
+
+        const toProcess = files.slice(0, slotsLeft);
+        if (toProcess.length < files.length) {
+            showToast(`Only ${toProcess.length} image${toProcess.length === 1 ? '' : 's'} can be added (max 9).`, 'info');
+        }
+
+        const prepared = [];
+        for (let i = 0; i < toProcess.length; i++) {
+            const meta = await fileToImageMeta(toProcess[i]);
+            const compressed = await compressBase64ImageToCap(meta.base64, IMAGE_UPLOAD_MAX_BYTES);
+            if (!compressed) continue;
+            prepared.push({
+                base64: compressed,
+                page: null,
+                width: meta.width || null,
+                height: meta.height || null,
+                rotation_degrees: 0
+            });
+        }
+
+        if (!prepared.length) {
+            showToast('No images were suitable for upload.', 'error');
+            return;
+        }
+
+        const res = await fetch(API_URL + '?mode=upload-images', {
+            method: 'POST',
+            headers: {
+                'X-Proxy-Token': PROXY_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                address: ctx.address,
+                valuation_id: ctx.valuationId || null,
+                images: prepared
+            })
+        });
+        const data = await res.json();
+
+        if (!data || !data.ok) {
+            showToast('Manual photo upload failed.', 'error');
+            return;
+        }
+
+        if (data.uploaded > 0) {
+            showToast(`Added ${data.uploaded} photo${data.uploaded === 1 ? '' : 's'} via ${source}.`, 'success');
+        } else if (data.reason) {
+            showToast(data.reason, 'info');
+        } else {
+            showToast('No new photos added (duplicates or limits).', 'info');
+        }
+
+        await loadSidebarImages(ctx.valuationId || _sidebarActiveId || null, ctx.address);
+    } catch (_) {
+        showToast('Manual photo upload unavailable.', 'error');
+    }
+}
+
+function base64ByteLength(b64) {
+    const cleaned = String(b64 || '').replace(/\s/g, '').replace(/=+$/, '');
+    if (!cleaned) return 0;
+    return Math.floor((cleaned.length * 3) / 4);
+}
+
+function normalizeRotation(deg) {
+    const n = Number(deg) || 0;
+    return ((n % 360) + 360) % 360;
+}
+
+function loadImageFromBase64(b64) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = 'data:image/jpeg;base64,' + b64;
+    });
+}
+
+async function compressBase64ImageToCap(b64, maxBytes) {
+    if (!b64) return null;
+    if (base64ByteLength(b64) <= maxBytes) return b64;
+
+    let img;
+    try {
+        img = await loadImageFromBase64(b64);
+    } catch (_) {
+        return null;
+    }
+
+    const canvas = document.createElement('canvas');
+    let width = img.naturalWidth || img.width;
+    let height = img.naturalHeight || img.height;
+
+    const maxDimension = 1800;
+    if (width > maxDimension || height > maxDimension) {
+        const scale = Math.min(maxDimension / width, maxDimension / height);
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const qualities = [0.88, 0.82, 0.76, 0.70, 0.64, 0.58, 0.52, 0.46];
+    for (const q of qualities) {
+        const dataUrl = canvas.toDataURL('image/jpeg', q);
+        const out = dataUrl.split(',')[1] || '';
+        if (out && base64ByteLength(out) <= maxBytes) return out;
+    }
+
+    return null;
+}
+
+async function rotateBase64ImageToOrientation(b64, degrees) {
+    const rot = normalizeRotation(degrees);
+    if (!b64) return null;
+    if (rot === 0) return b64;
+
+    let img;
+    try {
+        img = await loadImageFromBase64(b64);
+    } catch (_) {
+        return null;
+    }
+
+    const srcW = img.naturalWidth || img.width;
+    const srcH = img.naturalHeight || img.height;
+    const swap = rot === 90 || rot === 270;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = swap ? srcH : srcW;
+    canvas.height = swap ? srcW : srcH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.save();
+    if (rot === 90) {
+        ctx.translate(canvas.width, 0);
+        ctx.rotate(Math.PI / 2);
+    } else if (rot === 180) {
+        ctx.translate(canvas.width, canvas.height);
+        ctx.rotate(Math.PI);
+    } else if (rot === 270) {
+        ctx.translate(0, canvas.height);
+        ctx.rotate(-Math.PI / 2);
+    }
+    ctx.drawImage(img, 0, 0, srcW, srcH);
+    ctx.restore();
+
+    const out = canvas.toDataURL('image/jpeg', 0.92).split(',')[1] || '';
+    return out || null;
+}
+
+/* ═══════════════════════════════════════════
+   PREVIEW PANEL
+   ═══════════════════════════════════════════ */
+function openPreview() {
+    document.getElementById('previewCount').textContent = images.length;
+    document.getElementById('previewBody').style.display = '';
+    document.getElementById('thumbStrip').style.display = '';
+    const empty = document.getElementById('previewEmpty');
+    if (empty) empty.style.display = 'none';
+    buildThumbs();
+    showImage(0);
+    document.getElementById('previewPanel').classList.add('visible');
+}
+
+function openPreviewEmpty() {
+    document.getElementById('previewCount').textContent = '0';
+    document.getElementById('previewBody').style.display = 'none';
+    document.getElementById('thumbStrip').style.display = 'none';
+    let empty = document.getElementById('previewEmpty');
+    if (!empty) {
+        empty = document.createElement('div');
+        empty.id = 'previewEmpty';
+        empty.className = 'preview-empty';
+        empty.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>No photographs found in PDF. Use + Photos or paste an image (Ctrl+V).</span>';
+        document.getElementById('previewPanel').insertBefore(empty, document.getElementById('thumbStrip'));
+    }
+    empty.style.display = '';
+    document.getElementById('previewPanel').classList.add('visible');
+}
+
+function closePreview() {
+    document.getElementById('previewPanel').classList.remove('visible');
+}
+
+function buildThumbs() {
+    const strip = document.getElementById('thumbStrip');
+    strip.innerHTML = '';
+    images.forEach((img, i) => {
+        const div = document.createElement('div');
+        div.className = 'thumb' + (i === 0 ? ' active' : '');
+        div.onclick = () => showImage(i);
+        const im = document.createElement('img');
+        im.src = 'data:image/jpeg;base64,' + img.base64;
+        im.alt = 'Photo ' + (i + 1);
+        im.style.transform = `rotate(${normalizeRotation(img.rotation || 0)}deg)`;
+        div.appendChild(im);
+        strip.appendChild(div);
+    });
+}
+
+function showImage(idx) {
+    if (idx < 0 || idx >= images.length) return;
+    currentIdx = idx;
+
+    const main = document.getElementById('previewImg');
+    main.style.opacity = 0;
+    setTimeout(() => {
+        main.src = 'data:image/jpeg;base64,' + images[idx].base64;
+        main.style.transform = `rotate(${normalizeRotation(images[idx].rotation || 0)}deg)`;
+        main.style.opacity = 1;
+    }, 120);
+
+    document.getElementById('pageInfo').textContent = `${idx + 1} / ${images.length}`;
+
+    // Update thumbs
+    document.querySelectorAll('.thumb').forEach((t, i) => {
+        t.classList.toggle('active', i === idx);
+    });
+
+    // Nav button state
+    document.getElementById('navPrev').disabled = idx === 0;
+    document.getElementById('navNext').disabled = idx === images.length - 1;
+}
+
+function navImage(delta) {
+    showImage(currentIdx + delta);
+}
+
+function rotateCurrentImage(delta) {
+    if (!images || !images.length) return;
+    const img = images[currentIdx];
+    if (!img) return;
+    img.rotation = normalizeRotation((img.rotation || 0) + delta);
+    // Persist rotation to Supabase valuation_images.meta
+    if (img.dbId) {
+        const sb = _sbClient || window.supabaseClient || window._sb;
+        if (sb) {
+            const newMeta = Object.assign({}, img._meta || {}, { rotation_degrees: img.rotation });
+            img._meta = newMeta;
+            sb.from('valuation_images')
+                .update({ meta: newMeta })
+                .eq('id', img.dbId)
+                .then(({ error }) => {
+                    if (error) console.warn('[photos] rotation save failed:', error.message);
+                    else console.log('[photos] saved rotation', img.rotation, 'for image', img.dbId);
+                });
+        }
+    }
+    showImage(currentIdx);
+    // Also update the corresponding thumbnail
+    const thumbs = document.querySelectorAll('.thumb img');
+    if (thumbs[currentIdx]) {
+        thumbs[currentIdx].style.transform = `rotate(${img.rotation}deg)`;
+    }
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+    const open = document.getElementById('previewPanel').classList.contains('visible');
+    if (!open) return;
+    if (e.key === 'ArrowLeft')  navImage(-1);
+    if (e.key === 'ArrowRight') navImage(1);
+    if (e.key === 'Escape')     closePreview();
+});
+
+/* ═══════════════════════════════════════════
+   FLOORPLAN PANEL
+   ═══════════════════════════════════════════ */
+function openFloorplan(fpData) {
+    floorplans = Array.isArray(fpData) ? fpData.filter(f => f && (f.svg || f.raster_base64)) : [];
+    fpIdx = 0;
+    document.getElementById('fpCount').textContent = floorplans.length;
+
+    if (floorplans.length === 0) {
+        return;  // Don't show panel if no valid floorplans
+    }
+
+    // Show/hide toolbar based on multiple floorplans
+    const toolbar = document.getElementById('fpToolbar');
+    toolbar.style.display = floorplans.length > 1 ? '' : 'none';
+
+    showFloorplan(0);
+    document.getElementById('fpPanel').classList.add('visible');
+}
+
+function openFloorplanEmpty() {
+    document.getElementById('fpCount').textContent = '0';
+    document.getElementById('fpToolbar').style.display = 'none';
+    const vp = document.getElementById('fpViewport');
+    vp.innerHTML = '<div class="fp-empty">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>'
+        + '<span>No floorplan found in PDF</span>'
+        + '</div>';
+    document.getElementById('fpPanel').classList.add('visible');
+}
+
+function showFloorplan(idx) {
+    if (idx < 0 || idx >= floorplans.length) return;
+    fpIdx = idx;
+    const fp = floorplans[idx];
+    const vp = document.getElementById('fpViewport');
+
+    // Prefer SVG when available, else show styled raster
+    if (fp.svg) {
+        vp.innerHTML = fp.svg;
+    } else if (fp.raster_base64) {
+        const mime = fp.raster_mime || 'image/png';
+        vp.innerHTML = '<img src="data:' + mime + ';base64,' + fp.raster_base64 + '" alt="Floorplan">';
+    } else {
+        vp.innerHTML = '<div class="fp-empty"><span>Floorplan data unavailable</span></div>';
+    }
+
+    // Update nav
+    document.getElementById('fpPageLabel').textContent = (idx + 1) + ' / ' + floorplans.length;
+    document.getElementById('fpPrev').disabled = idx === 0;
+    document.getElementById('fpNext').disabled = idx === floorplans.length - 1;
+}
+
+function navFloorplan(delta) { showFloorplan(fpIdx + delta); }
+function closeFloorplan() { document.getElementById('fpPanel').classList.remove('visible'); }
+
+// Make floorplan panel draggable
+(function() {
+    const panel = document.getElementById('fpPanel');
+    const handle = document.getElementById('fpDragHandle');
+    let dragging = false, sx, sy, sl, st;
+    handle.addEventListener('mousedown', e => {
+        if (e.target.closest('.fp-close') || e.target.closest('.fp-nav-btn')) return;
+        dragging = true;
+        sx = e.clientX; sy = e.clientY;
+        const r = panel.getBoundingClientRect();
+        sl = r.left; st = r.top;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const newX = Math.max(260, sl + e.clientX - sx);
+        panel.style.left = newX + 'px';
+        panel.style.top  = (st + e.clientY - sy) + 'px';
+        panel.style.right = 'auto';
+    });
+    document.addEventListener('mouseup', () => { dragging = false; });
+})();
+
+/* ═══════════════════════════════════════════
+   VALUATION DETAILS PANEL
+   ═══════════════════════════════════════════ */
+function openDetails(valuation) {
+    const panel = document.getElementById('detailsPanel');
+    const body  = document.getElementById('detailsBody');
+    const addrEl = document.getElementById('detailsAddress');
+
+    panel.classList.add('visible');
+
+    if (!valuation || valuation.error) {
+        addrEl.textContent = '';
+        body.innerHTML = buildSkeletonHTML();
+        if (valuation && valuation.error) {
+            body.innerHTML = `<div style="padding:12px 0;font-size:11px;color:var(--negative);">Could not extract valuation data: ${esc(valuation.error)}</div>`;
+        }
+        return;
+    }
+
+    // Show address in header
+    const addr = fmtVal(valuation.address);
+    addrEl.textContent = addr || '';
+    addrEl.title = addr || '';
+
+    body.innerHTML = buildValuationHTML(valuation);
+}
+
+function closeDetails() {
+    document.getElementById('detailsPanel').classList.remove('visible');
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function copySummary(btn) {
+    const title = btn.closest('.details-section-title');
+    const summaryDiv = title ? title.nextElementSibling : null;
+    if (!summaryDiv) return;
+    const bulletBtn = title ? title.querySelector('.summary-bullet-btn') : null;
+    const isBulletMode = !!(bulletBtn && bulletBtn.classList.contains('active'));
+
+    let text = summaryDiv.dataset.fullText || summaryDiv.innerText || '';
+    if (isBulletMode) {
+        const raw = summaryDiv.dataset.fullText || summaryDiv.innerText || '';
+        const sentences = raw.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+        text = sentences.map(s => `• ${s.trim()}`).join('\n');
+    }
+
+    navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1200);
+    });
+}
+
+function toggleBulletView(btn) {
+    const summaryDiv = btn.closest('.details-section-title').nextElementSibling;
+    if (!summaryDiv || !summaryDiv.dataset.fullText) return;
+    const isBullet = btn.classList.toggle('active');
+    const raw = summaryDiv.dataset.fullText;
+    if (!raw) return;
+    if (isBullet) {
+        // Split into sentences and render as bullet list
+        const sentences = raw.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+        const listItems = sentences.map(s => '<li>' + esc(s.trim()) + '</li>').join('');
+        summaryDiv.innerHTML = '<ul class="summary-bullets">' + listItems + '</ul>';
+    } else {
+        summaryDiv.innerHTML = esc(raw);
+    }
+}
+
+function fmtVal(v) {
+    if (v === null || v === undefined || v === 'null' || v === '') return null;
+    return String(v);
+}
+
+function moneyCell(v) {
+    const s = fmtVal(v);
+    if (!s) return '<span class="details-value null-val">N/A</span>';
+    return `<span class="details-value money">${esc(s)}</span>`;
+}
+
+function textCell(v) {
+    const s = fmtVal(v);
+    if (!s) return '<span class="details-value null-val">N/A</span>';
+    return `<span class="details-value">${esc(s)}</span>`;
+}
+
+function parseMoneyValue(v) {
+    const s = fmtVal(v);
+    if (!s) return null;
+    const n = parseFloat(String(s).replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(n) ? n : null;
+}
+
+function sanitizeComparableSummary(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return '';
+    const sentences = raw.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+    const kept = sentences.filter(s => !/market\s+rent/i.test(s));
+    if (kept.length > 0) return kept.join(' ');
+    return raw.replace(/\bmarket\s+rent\b/ig, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+function buildTenanciesOccupierDemandSummary(v) {
+    const occupancy = String(fmtVal(v.occupancy) || '').trim();
+    const occupancyLower = occupancy.toLowerCase();
+    const isVacant = /vacant|void|unoccupied/.test(occupancyLower);
+
+    const comps = Array.isArray(v.comparables) ? v.comparables : [];
+    const rentComps = comps.filter(c => String(fmtVal(c?.comp_type) || '').toLowerCase() === 'rental');
+    const rentVals = rentComps
+        .map(c => parseMoneyValue(c?.price))
+        .filter(n => Number.isFinite(n));
+    const marketRent = parseMoneyValue(v.market_rent);
+
+    const demandText = rentComps.length >= 5
+        ? 'Occupier demand for rental stock appears strong based on the volume of rental comparables.'
+        : rentComps.length >= 3
+            ? 'Occupier demand for rental stock appears reasonable based on available rental comparables.'
+            : rentComps.length >= 1
+                ? 'Occupier demand evidence is limited, with only a small number of rental comparables in the report.'
+                : 'The report provides limited direct rental comparable evidence on occupier demand.';
+
+    if (isVacant) {
+        const parts = ['The property is currently vacant.'];
+        if (rentVals.length) {
+            const minR = Math.min(...rentVals);
+            const maxR = Math.max(...rentVals);
+            const avgR = Math.round(rentVals.reduce((a, b) => a + b, 0) / rentVals.length);
+            parts.push(`Rental comparables indicate an approximate range of £${Math.round(minR).toLocaleString('en-GB')} to £${Math.round(maxR).toLocaleString('en-GB')} pcm (average c.£${avgR.toLocaleString('en-GB')} pcm).`);
+        } else if (Number.isFinite(marketRent)) {
+            parts.push(`Reported market rent is c.£${Math.round(marketRent).toLocaleString('en-GB')} pcm.`);
+        } else {
+            parts.push('No quantified market rent is provided in the report.');
+        }
+        parts.push(demandText);
+        return parts.join(' ');
+    }
+
+    const tenancyTypeRaw = String(
+        fmtVal(v.tenancy_type)
+        || (/(\bast\b|assured\s+shorthold)/i.test(occupancy) ? 'AST' : '')
+        || ''
+    ).trim();
+    const tenantName = String(fmtVal(v.tenant_name) || fmtVal(v.let_to) || fmtVal(v.tenant) || '').trim();
+    const tenantDuration = String(fmtVal(v.tenancy_length) || fmtVal(v.tenant_since) || fmtVal(v.letting_since) || '').trim();
+    const achievedRent = parseMoneyValue(v.passing_rent) ?? parseMoneyValue(v.current_rent) ?? parseMoneyValue(v.achieved_rent) ?? parseMoneyValue(v.rental_income);
+
+    const intro = tenancyTypeRaw
+        ? `The property appears tenanted on ${tenancyTypeRaw} terms.`
+        : 'The property appears tenanted.';
+    const who = tenantName ? `It is let to ${tenantName}.` : '';
+    const duration = tenantDuration ? `Tenant occupation has been noted as ${tenantDuration}.` : '';
+
+    const compAvg = rentVals.length ? (rentVals.reduce((a, b) => a + b, 0) / rentVals.length) : null;
+    const comparisons = [];
+    if (Number.isFinite(achievedRent) && Number.isFinite(compAvg)) {
+        const diff = achievedRent - compAvg;
+        const sign = diff >= 0 ? 'above' : 'below';
+        comparisons.push(`Achieved rent of c.£${Math.round(achievedRent).toLocaleString('en-GB')} pcm is ${Math.round(Math.abs(diff)).toLocaleString('en-GB')} pcm ${sign} the rental comparable average.`);
+    } else if (Number.isFinite(compAvg)) {
+        comparisons.push(`Rental comparables indicate an average of c.£${Math.round(compAvg).toLocaleString('en-GB')} pcm.`);
+    }
+
+    if (Number.isFinite(achievedRent) && Number.isFinite(marketRent)) {
+        const diffMr = achievedRent - marketRent;
+        const signMr = diffMr >= 0 ? 'above' : 'below';
+        comparisons.push(`This is ${Math.round(Math.abs(diffMr)).toLocaleString('en-GB')} pcm ${signMr} reported market rent of c.£${Math.round(marketRent).toLocaleString('en-GB')} pcm.`);
+    } else if (Number.isFinite(marketRent)) {
+        comparisons.push(`Reported market rent is c.£${Math.round(marketRent).toLocaleString('en-GB')} pcm.`);
+    }
+
+    return [intro, who, duration, ...comparisons, demandText].filter(Boolean).join(' ');
+}
+
+/** Only render a row if the value is present (not null/empty) */
+function optionalMoneyRow(label, v) {
+    const s = fmtVal(v);
+    if (!s) return '';
+    return `<div class="details-row"><span class="details-label">${esc(label)}</span><span class="details-value money">${esc(s)}</span></div>`;
+}
+
+/** Hard-parse valuation methodology to Investment / Market */
+function parseMethodology(raw) {
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+    const methods = [];
+    if (lower.includes('investment') || lower.includes('income') || lower.includes('yield') || lower.includes('capitalisation')) {
+        methods.push('Investment');
+    }
+    if (lower.includes('market') || lower.includes('comparable') || lower.includes('comparison') || lower.includes('direct') || lower.includes('comparative')) {
+        methods.push('Market');
+    }
+    if (methods.length === 0) methods.push('Market'); // default fallback
+    return methods.join(', ');
+}
+
+/** Case-type badge: SME (commercial), Refurb (GDV/cost of works), Standard */
+function buildCaseTypeBadge(v) {
+    const pType = (fmtVal(v.property_type) || '').toLowerCase();
+    const gdv = fmtVal(v.gdv);
+    const cow = fmtVal(v.cost_of_works);
+    let caseType, cls;
+    if (pType === 'commercial' || pType === 'mixed-use') {
+        caseType = 'SME'; cls = 'sme';
+    } else if (gdv || cow) {
+        caseType = 'Refurb'; cls = 'refurb';
+    } else {
+        caseType = 'Standard'; cls = 'standard';
+    }
+    return `<div class="details-row"><span class="details-label">Case Type</span><span class="details-value"><span class="case-type-badge ${cls}">${caseType}</span></span></div>`;
+}
+
+function buildFlagsHTML(v) {
+    const flags = Array.isArray(v.flags) ? v.flags : [];
+    const structuredFlags = Array.isArray(v.risk_flags_structured) ? v.risk_flags_structured : [];
+
+    // Info badges (shown in both views)
+    let infoBadges = '';
+    const occ = fmtVal(v.occupancy);
+    if (occ) infoBadges += `<span class="flag-badge info">${esc(occ)}</span>`;
+
+    const tenType = fmtVal(v.tenure_type);
+    const leaseYrs = fmtVal(v.lease_years_remaining);
+    if (tenType) {
+        let tenureLabel = tenType;
+        if (leaseYrs && tenType.toLowerCase().includes('leasehold')) tenureLabel += ` (${leaseYrs} years)`;
+        infoBadges += `<span class="flag-badge info">${esc(tenureLabel)}</span>`;
+    } else {
+        const tenure = fmtVal(v.tenure);
+        if (tenure) infoBadges += `<span class="flag-badge info">${esc(tenure)}</span>`;
+    }
+
+    const cond = fmtVal(v.property_condition);
+    if (cond) {
+        const cls = cond === 'High' ? 'good' : cond === 'Unmodernised' ? 'warn' : 'info';
+        infoBadges += `<span class="flag-badge ${cls}">${esc(cond)}</span>`;
+    }
+
+    const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+    // Structured flags – hide "Other Valuation Risk" (default view)
+    let structuredHtml = '';
+    if (structuredFlags.length > 0) {
+        structuredFlags.forEach(f => {
+            const ruleName = String((f && f.rule_name) || '').toLowerCase();
+            if (ruleName === 'other valuation risk') return; // hide catch-all
+            const sev = String((f && f.severity) || '').toLowerCase();
+            const cls = sev === 'high' ? 'warn' : (sev === 'medium' ? 'warn' : 'info');
+            const label = String((f && f.rule_name) || (f && f.rule_code) || 'Risk Flag');
+            const detail = String((f && f.input_flag) || '');
+            structuredHtml += `<span class="flag-badge ${cls}" title="${esc(detail || label)}">${warnSvg}${esc(label)}</span>`;
+        });
+    }
+
+    // Raw ensemble flags ("Show All" view)
+    let rawHtml = '';
+    flags.forEach(f => {
+        rawHtml += `<span class="flag-badge warn">${warnSvg}${esc(f)}</span>`;
+    });
+
+    const hasFlags = infoBadges || structuredHtml || rawHtml;
+    if (!hasFlags) return '';
+
+    const showToggle = flags.length > 0;
+    const toggleHtml = showToggle
+        ? `<div class="flags-toggle-wrap"><span class="flags-toggle-label">Show All</span><button class="monday-toggle" id="flagsToggle" onclick="toggleFlagsView()"></button></div>`
+        : '';
+
+    return `<div class="flags-title-row"><div class="details-section-title" style="margin:0">Flags</div>${toggleHtml}</div>`
+        + `<div class="flags-row" id="flagsStructured">${infoBadges}${structuredHtml}</div>`
+        + `<div class="flags-row" id="flagsRaw" style="display:none">${infoBadges}${rawHtml}</div>`;
+}
+
+function toggleFlagsView() {
+    const toggle = document.getElementById('flagsToggle');
+    const structured = document.getElementById('flagsStructured');
+    const raw = document.getElementById('flagsRaw');
+    if (!toggle || !structured || !raw) return;
+    toggle.classList.toggle('active');
+    const showAll = toggle.classList.contains('active');
+    structured.style.display = showAll ? 'none' : '';
+    raw.style.display = showAll ? '' : 'none';
+}
+
+function buildValuationHTML(v) {
+    // Case type badge at top
+    let html = buildCaseTypeBadge(v);
+
+    // Flags section
+    html += buildFlagsHTML(v);
+
+    // Property Info
+    const pType = fmtVal(v.property_type);
+    const pSub = fmtVal(v.property_subtype);
+    const titles = Array.isArray(v.title_numbers) && v.title_numbers.length > 0 ? v.title_numbers : null;
+    if (pType || pSub || titles) {
+        html += `<div class="details-section-title">Property</div>`;
+        if (pType) html += `<div class="details-row"><span class="details-label">Type</span>${textCell(pType)}</div>`;
+        if (pSub) html += `<div class="details-row"><span class="details-label">Subtype</span>${textCell(pSub)}</div>`;
+        if (titles) html += `<div class="details-row"><span class="details-label">Title No.</span>${textCell(titles.join(', '))}</div>`;
+    }
+
+    // Valuation Figures
+    html += `<div class="details-section-title">Valuation Figures</div>`;
+    html += `<div class="details-row"><span class="details-label">Market Value</span>${moneyCell(v.market_value)}</div>`;
+    html += `<div class="details-row"><span class="details-label">MV (90 Day)</span>${moneyCell(v.market_value_90_day)}</div>`;
+    html += `<div class="details-row"><span class="details-label">MV (180 Day)</span>${moneyCell(v.market_value_180_day)}</div>`;
+    html += `<div class="details-row"><span class="details-label">Market Rent</span>${moneyCell(v.market_rent)}</div>`;
+    html += optionalMoneyRow('GDV', v.gdv);
+    html += optionalMoneyRow('Cost of Works', v.cost_of_works);
+    html += `<div class="details-row"><span class="details-label">Reinstatement</span>${moneyCell(v.reinstatement_value)}</div>`;
+
+    // Size & Price/sqft
+    const sqft = fmtVal(v.sqft);
+    if (sqft) {
+        html += `<div class="details-section-title">Size</div>`;
+        html += `<div class="details-row"><span class="details-label">GIA</span>${textCell(sqft + ' sq ft')}</div>`;
+        // Calculate price per sqft from market value
+        const mvStr = fmtVal(v.market_value);
+        if (mvStr) {
+            const mvNum = parseFloat(mvStr.replace(/[£,]/g, ''));
+            const sqftNum = parseFloat(sqft);
+            if (mvNum > 0 && sqftNum > 0) {
+                const psf = Math.round(mvNum / sqftNum);
+                html += `<div class="details-row"><span class="details-label">£ / sq ft</span><span class="details-value">£${psf.toLocaleString()}</span></div>`;
+            }
+        }
+    }
+
+    // Methodology — hard-parse to Investment / Market
+    const rawMethod = fmtVal(v.valuation_method) || '';
+    const parsedMethod = parseMethodology(rawMethod);
+    html += `<div class="details-section-title">Methodology</div>`;
+    html += `<div class="details-row"><span class="details-label">Valuation Method</span>${textCell(parsedMethod || rawMethod)}</div>`;
+
+    // Accommodation
+    html += `<div class="details-section-title">Accommodation</div>`;
+    html += `<div class="details-row"><span class="details-label">Bedrooms</span>${textCell(v.bedrooms)}</div>`;
+    html += `<div class="details-row"><span class="details-label">Bathrooms</span>${textCell(v.bathrooms)}</div>`;
+    html += `<div class="details-row"><span class="details-label">Living Rooms</span>${textCell(v.living_rooms)}</div>`;
+
+    // Summaries
+    html += `<div class="details-section-title">Location Summary <button class="summary-copy-btn" onclick="copySummary(this)" title="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="summary-bullet-btn" onclick="toggleBulletView(this)" title="Toggle bullet points">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg></button></div>`;
+    html += `<div class="details-summary" data-full-text="${v.location_summary ? escAttr(v.location_summary) : ''}">${v.location_summary ? esc(v.location_summary) : '<span class="null-val">Not available</span>'}</div>`;
+
+    html += `<div class="details-section-title">Property Summary <button class="summary-copy-btn" onclick="copySummary(this)" title="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="summary-bullet-btn" onclick="toggleBulletView(this)" title="Toggle bullet points">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg></button></div>`;
+    html += `<div class="details-summary" data-full-text="${v.property_summary ? escAttr(v.property_summary) : ''}">${v.property_summary ? esc(v.property_summary) : '<span class="null-val">Not available</span>'}</div>`;
+
+    const comparableSummary = sanitizeComparableSummary(v.comparable_summary || '');
+    const tenancyDemandSummary = fmtVal(v.tenancies_occupier_demand_summary) || buildTenanciesOccupierDemandSummary(v);
+
+    html += `<div class="details-section-title">Comparable Summary <button class="summary-copy-btn" onclick="copySummary(this)" title="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="summary-bullet-btn" onclick="toggleBulletView(this)" title="Toggle bullet points">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg></button></div>`;
+    html += `<div class="details-summary" data-full-text="${comparableSummary ? escAttr(comparableSummary) : ''}">${comparableSummary ? esc(comparableSummary) : '<span class="null-val">Not available</span>'}</div>`;
+
+    html += `<div class="details-section-title">Tenancies and Occupier Demand <button class="summary-copy-btn" onclick="copySummary(this)" title="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="summary-bullet-btn" onclick="toggleBulletView(this)" title="Toggle bullet points">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg></button></div>`;
+    html += `<div class="details-summary" data-full-text="${tenancyDemandSummary ? escAttr(tenancyDemandSummary) : ''}">${tenancyDemandSummary ? esc(tenancyDemandSummary) : '<span class="null-val">Not available</span>'}</div>`;
+
+    return html;
+}
+
+function buildSkeletonHTML() {
+    let h = '<div class="details-loading">';
+    for (let i = 0; i < 7; i++) {
+        h += '<div class="skel-row"><div class="skel w40"></div><div class="skel w30"></div></div>';
+    }
+    h += '<div style="margin-top:8px"><div class="skel w60" style="margin-bottom:6px"></div>';
+    for (let i = 0; i < 3; i++) h += '<div class="skel w100" style="margin-bottom:4px"></div>';
+    h += '</div></div>';
+    return h;
+}
+
+/* ═══════════════════════════════════════════
+   DRAGGABLE PANELS (generic)
+   ═══════════════════════════════════════════ */
+let _panelZCounter = 500;
+
+function bringToFront(panel) {
+    _panelZCounter++;
+    panel.style.zIndex = _panelZCounter;
+}
+
+function initDraggable(panelId, handleId, closeClass) {
+    const panel  = document.getElementById(panelId);
+    const handle = document.getElementById(handleId);
+    let dragging = false, offsetX = 0, offsetY = 0;
+
+    handle.addEventListener('mousedown', e => {
+        if (e.target.closest('.' + closeClass)) return;
+        bringToFront(panel);
+        dragging = true;
+        offsetX = e.clientX - panel.getBoundingClientRect().left;
+        offsetY = e.clientY - panel.getBoundingClientRect().top;
+        document.body.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        let x = e.clientX - offsetX;
+        let y = e.clientY - offsetY;
+        const sidebarW = 260;
+        x = Math.max(sidebarW, Math.min(x, window.innerWidth  - panel.offsetWidth));
+        y = Math.max(0, Math.min(y, window.innerHeight - panel.offsetHeight));
+        panel.style.left  = x + 'px';
+        panel.style.top   = y + 'px';
+        panel.style.right  = 'auto';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.cursor = '';
+    });
+}
+
+initDraggable('previewPanel', 'previewDragHandle', 'preview-close');
+initDraggable('detailsPanel', 'detailsDragHandle', 'details-close');
+initDraggable('compsPanel',   'compsDragHandle',   'comps-close');
+initDraggable('mapPanel',     'mapDragHandle',     'map-close');
+
+/* ═══════════════════════════════════════════
+   COMPARABLES PANEL
+   ═══════════════════════════════════════════ */
+let _lastValuation = null;
+
+function openComps(v) {
+    _lastValuation = v;
+    const comps = Array.isArray(v.comparables) ? v.comparables : [];
+    if (comps.length === 0) return;
+
+    const panel = document.getElementById('compsPanel');
+    const body  = document.getElementById('compsBody');
+    document.getElementById('compsCount').textContent = comps.length;
+
+    // Filter out subject property from comparables (AI sometimes includes it)
+    const subjectAddr = (fmtVal(v.address) || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isSubject = (c) => {
+        const cAddr = (fmtVal(c.address) || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return subjectAddr && cAddr && (cAddr === subjectAddr || subjectAddr.includes(cAddr) || cAddr.includes(subjectAddr));
+    };
+    const filteredComps = comps.filter(c => !isSubject(c));
+
+    // Split into sale and rental comparables
+    const saleComps = filteredComps.filter(c => !fmtVal(c.comp_type) || fmtVal(c.comp_type).toLowerCase() === 'sale');
+    const rentComps = filteredComps.filter(c => fmtVal(c.comp_type) && fmtVal(c.comp_type).toLowerCase() === 'rental');
+
+    // Subject row data
+    const subjectSqft = v.sqft ? parseInt(v.sqft) : null;
+    const mvStr = fmtVal(v.market_value);
+    const mvNum = mvStr ? parseFloat(mvStr.replace(/[£,]/g, '')) : null;
+    const subjectSalePsf = (mvNum && subjectSqft) ? Math.round(mvNum / subjectSqft) : null;
+    const rentStr = fmtVal(v.market_rent);
+    const rentNum = rentStr ? parseFloat(String(rentStr).replace(/[^0-9.\-]/g, '')) : null;
+    const subjectRentPsf = (rentNum && subjectSqft) ? Math.round(rentNum / subjectSqft) : null;
+
+    let html = '';
+
+    // Helper to build a comps table
+    function buildCompTable(list, isRental) {
+        const parseNum = (val) => {
+            if (val === null || val === undefined || val === '') return null;
+            const n = parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+            return Number.isFinite(n) ? n : null;
+        };
+        const fmtAvgMoney = (n) => Number.isFinite(n) ? ('£' + Math.round(n).toLocaleString()) : '—';
+        const fmtAvgNum = (n) => Number.isFinite(n) ? Math.round(n).toLocaleString() : '—';
+
+        let t = '<table class="comps-table"><thead><tr>';
+        t += '<th>Address</th><th>Price</th><th>Date</th><th>Type</th><th>Sq ft</th><th>£/sqft</th><th>Distance</th><th>Adj.</th>';
+        t += '</tr></thead><tbody>';
+
+        // Always show subject row
+        const subjectPrice = isRental ? (rentStr || 'N/A') : (mvStr || 'N/A');
+        t += '<tr class="subject-row">';
+        t += `<td>${esc(fmtVal(v.address) || 'Subject Property')}</td>`;
+        t += `<td>${esc(subjectPrice)}</td>`;
+        t += '<td>—</td>';
+        t += `<td>${esc(fmtVal(v.property_subtype) || fmtVal(v.property_type) || '—')}</td>`;
+        t += `<td>${subjectSqft ? subjectSqft.toLocaleString() : '—'}</td>`;
+        t += `<td>${(isRental ? subjectRentPsf : subjectSalePsf) ? '£' + (isRental ? subjectRentPsf : subjectSalePsf).toLocaleString() : '—'}</td>`;
+        t += '<td>—</td><td>—</td>';
+        t += '</tr>';
+
+        let sumPrice = 0, nPrice = 0;
+        let sumSqft = 0, nSqft = 0;
+        let sumPsf = 0, nPsf = 0;
+
+        list.forEach(c => {
+            const adjVal = fmtVal(c.adjustment);
+            let adjClass = '';
+            if (adjVal && adjVal !== 'null') {
+                if (adjVal.startsWith('+')) adjClass = 'adj-positive';
+                else if (adjVal.startsWith('-')) adjClass = 'adj-negative';
+            }
+            const adjDisplay = (adjVal && adjVal !== 'null') ? adjVal : '—';
+            const priceNum = parseNum(c.price);
+            const sqftNum = parseNum(c.sqft);
+            const psfNum = parseNum(c.price_sqft);
+            if (priceNum !== null) { sumPrice += priceNum; nPrice++; }
+            if (sqftNum !== null) { sumSqft += sqftNum; nSqft++; }
+            if (psfNum !== null) { sumPsf += psfNum; nPsf++; }
+            const cLat = parseFloat(c.latitude);
+            const cLng = parseFloat(c.longitude);
+            const hasCoords = !isNaN(cLat) && !isNaN(cLng);
+            t += '<tr' + (hasCoords ? ' class="comp-clickable" data-lat="' + cLat + '" data-lng="' + cLng + '"' : '') + '>';
+            // Coord verification badge
+            let badge = '';
+            const status = c._coordStatus || (hasCoords ? 'verified' : 'none');
+            if (status === 'verified') {
+                badge = '<span class="coord-badge coord-ok" title="Location verified' + (c._distFromSubjectKm != null ? ' (' + c._distFromSubjectKm + ' km from subject)' : '') + '">✓</span>';
+            } else if (status === 'suspect') {
+                badge = '<span class="coord-badge coord-warn" title="Location may be inaccurate — ' + (c._distFromSubjectKm || '?') + ' km from subject">⚠</span>';
+            } else {
+                badge = '<span class="coord-badge coord-none" title="Location unavailable">—</span>';
+            }
+            t += `<td>${badge}${esc(fmtVal(c.address) || '—')}</td>`;
+            t += `<td>${esc(fmtVal(c.price) || '—')}</td>`;
+            t += `<td>${esc(fmtVal(c.date) || '—')}</td>`;
+            t += `<td>${esc(fmtVal(c.property_type) || '—')}</td>`;
+            t += `<td>${c.sqft ? parseInt(c.sqft).toLocaleString() : '—'}</td>`;
+            t += `<td>${esc(fmtVal(c.price_sqft) || '—')}</td>`;
+            t += `<td>${esc(fmtVal(c.distance) || '—')}</td>`;
+            t += `<td class="${adjClass}">${esc(adjDisplay)}</td>`;
+            t += '</tr>';
+        });
+
+        if (list.length > 0) {
+            const avgPrice = nPrice > 0 ? (sumPrice / nPrice) : null;
+            const avgSqft = nSqft > 0 ? (sumSqft / nSqft) : null;
+            const avgPsf = nPsf > 0 ? (sumPsf / nPsf) : null;
+            t += '<tr class="average-row">';
+            t += '<td>Average (Comps)</td>';
+            t += `<td>${avgPrice !== null ? fmtAvgMoney(avgPrice) : '—'}</td>`;
+            t += '<td>—</td>';
+            t += '<td>—</td>';
+            t += `<td>${avgSqft !== null ? fmtAvgNum(avgSqft) : '—'}</td>`;
+            t += `<td>${avgPsf !== null ? fmtAvgMoney(avgPsf) : '—'}</td>`;
+            t += '<td>—</td><td>—</td>';
+            t += '</tr>';
+        }
+
+        t += '</tbody></table>';
+        return t;
+    }
+
+    // Sale comparables (always show if any comps exist)
+    if (saleComps.length > 0 || rentComps.length === 0) {
+        if (rentComps.length > 0) html += '<div class="comps-section-label">Sale Comparables</div>';
+        html += buildCompTable(saleComps.length > 0 ? saleComps : comps, false);
+    }
+
+    // Rental comparables
+    if (rentComps.length > 0) {
+        html += '<div class="comps-section-label">Rental Comparables</div>';
+        html += buildCompTable(rentComps, true);
+    }
+
+    body.innerHTML = html;
+    panel.classList.add('visible');
+
+    // Click comp row → fly map to that pin
+    body.querySelectorAll('tr.comp-clickable').forEach(tr => {
+        tr.addEventListener('click', () => {
+            const clat = parseFloat(tr.dataset.lat);
+            const clng = parseFloat(tr.dataset.lng);
+            if (!isNaN(clat) && !isNaN(clng)) {
+                postToMapFrame({ type: 'fly-to', lat: clat, lng: clng });
+                document.getElementById('mapPanel').classList.add('visible');
+            }
+        });
+    });
+}
+
+function closeComps() {
+    document.getElementById('compsPanel').classList.remove('visible');
+}
+
+/* ═══════════════════════════════════════════
+   MAP PANEL — iframe-based (bypasses CSP)
+   Mapbox GL JS runs inside api/map-frame.php
+   which sets its own CSP headers via PHP header().
+   ═══════════════════════════════════════════ */
+let MAPBOX_TOKEN = '';
+const MAPBOX_FALLBACK_TOKEN = 'pk.eyJ1Ijoib2xpdmVyY2RhbmllbHMyIiwiYSI6ImNtbW5tcm9vaTA0cngzMXNkOW9kZWJ1NnIifQ.qW6M1nJCRFlDL8JAs-QrjQ';
+let _mapIframeReady = false;
+let _saleVisible = true;
+let _rentVisible = true;
+let _mapIs3D = true;
+
+async function getMapboxToken() {
+    if (MAPBOX_TOKEN && MAPBOX_TOKEN.startsWith('pk.')) return MAPBOX_TOKEN;
+    try {
+        const res = await fetch('../api/mapbox-token.php', {
+            headers: { 'X-Proxy-Token': PROXY_TOKEN }
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data || !data.ok || !data.token || !String(data.token).startsWith('pk.')) throw new Error('token invalid');
+        MAPBOX_TOKEN = data.token;
+        console.log('[map] got vault token');
+    } catch (e) {
+        console.log('[map] vault token failed, using fallback:', e.message || e);
+        MAPBOX_TOKEN = MAPBOX_FALLBACK_TOKEN;
+    }
+    return MAPBOX_TOKEN;
+}
+
+function getFirstComparableCoords(v) {
+    const comps = Array.isArray(v && v.comparables) ? v.comparables : [];
+    for (const c of comps) {
+        const cLat = parseFloat(c.latitude);
+        const cLng = parseFloat(c.longitude);
+        if (!isNaN(cLat) && !isNaN(cLng)) return { lat: cLat, lng: cLng };
+    }
+    return null;
+}
+
+function extractUKPostcode(text) {
+    const m = String(text || '').match(/([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})/i);
+    return m ? (m[1] + ' ' + m[2]).toUpperCase() : null;
+}
+
+async function geocodeQuery(query) {
+    try {
+        const proxyUrl = `${API_URL.replace('valuation-parser.php', 'mapbox-geocode.php')}?q=${encodeURIComponent(query)}&limit=1&country=gb`;
+        console.log('[map] geocoding via proxy:', query);
+        const res = await fetch(proxyUrl, { headers: { 'X-Proxy-Token': PROXY_TOKEN } });
+        if (!res.ok) { console.warn('[map] geocode proxy HTTP', res.status); return null; }
+        const data = await res.json();
+        if (!data || !data.ok) { console.warn('[map] geocode proxy error:', data && data.error); return null; }
+        const first = Array.isArray(data.features) ? data.features[0] : null;
+        if (!first || !Array.isArray(first.center) || first.center.length < 2) return null;
+        const lng = parseFloat(first.center[0]);
+        const lat = parseFloat(first.center[1]);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        console.log('[map] geocoded:', query, '->', lat, lng);
+        return { lat, lng };
+    } catch (e) {
+        console.warn('[map] geocode error:', query, e);
+        return null;
+    }
+}
+
+async function geocodeAddressToCoords(address) {
+    const addr = String(address || '').trim();
+    if (!addr) return null;
+    const result = await geocodeQuery(addr);
+    if (result) return result;
+    const pc = extractUKPostcode(addr);
+    if (pc) {
+        console.log('[map] full address geocode failed, trying postcode:', pc);
+        return await geocodeQuery(pc);
+    }
+    return null;
+}
+
+/** Haversine distance in km between two lat/lng pairs */
+function haversineKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function showMapPanelMessage(msg) {
+    const panel = document.getElementById('mapPanel');
+    const container = document.getElementById('mapContainer');
+    panel.classList.add('visible');
+    if (container) {
+        container.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:12px;padding:16px;text-align:center;">${esc(msg || 'Map unavailable')}</div>`;
+    }
+}
+
+function postToMapFrame(msg) {
+    const iframe = document.getElementById('mapIframe');
+    if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(msg, '*');
+    }
+}
+
+// Listen for messages from map iframe
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'map-ready') {
+        _mapIframeReady = true;
+        console.log('[map] iframe ready');
+    }
+});
+
+async function openMap(v) {
+    const subjLat = parseFloat(v.latitude);
+    const subjLng = parseFloat(v.longitude);
+    let lat = isNaN(subjLat) ? NaN : subjLat;
+    let lng = isNaN(subjLng) ? NaN : subjLng;
+    console.log('[map] subject coords from ensemble:', v.latitude, v.longitude, '-> parsed:', lat, lng);
+
+    // Get Mapbox token first
+    try { await getMapboxToken(); } catch (e) {
+        showMapPanelMessage('Map unavailable: missing Mapbox key');
+        return;
+    }
+    if (!MAPBOX_TOKEN || !MAPBOX_TOKEN.startsWith('pk.')) {
+        console.warn('[map] token invalid, using fallback');
+        MAPBOX_TOKEN = MAPBOX_FALLBACK_TOKEN;
+    }
+
+    // Coordinate fallback chain: ensemble → comparable → geocode
+    if ((isNaN(lat) || isNaN(lng)) && v) {
+        const compCoords = getFirstComparableCoords(v);
+        if (compCoords) {
+            lat = compCoords.lat; lng = compCoords.lng;
+            console.log('[map] using comparable coords:', lat, lng);
+        }
+    }
+    if (isNaN(lat) || isNaN(lng)) {
+        console.log('[map] no direct coords, trying geocode for:', v && v.address);
+        const geo = await geocodeAddressToCoords(v && v.address);
+        if (geo) { lat = geo.lat; lng = geo.lng; }
+    }
+    if (isNaN(lat) || isNaN(lng)) {
+        console.warn('[map] all coordinate sources failed');
+        showMapPanelMessage('No map coordinates available for this valuation.');
+        return;
+    }
+    console.log('[map] using coords:', lat, lng);
+
+    // UK bounds check — reject non-UK coordinates
+    const UK_BOUNDS = { latMin: 49.8, latMax: 61.0, lngMin: -8.7, lngMax: 2.0 };
+    if (lat < UK_BOUNDS.latMin || lat > UK_BOUNDS.latMax || lng < UK_BOUNDS.lngMin || lng > UK_BOUNDS.lngMax) {
+        console.warn('[map] coordinates outside UK bounds:', lat, lng);
+        showMapPanelMessage('Address coordinates are outside the United Kingdom — map unavailable.');
+        showToast('Map error: address is outside the UK', 'error');
+        return;
+    }
+
+    // Reset toggle state
+    _saleVisible = true; _rentVisible = true; _mapIs3D = true;
+    document.getElementById('toggleSaleComps').classList.add('active');
+    document.getElementById('toggleRentComps').classList.add('active');
+    document.getElementById('toggle3D').classList.add('active');
+
+    // Show panel and create iframe
+    const panel = document.getElementById('mapPanel');
+    const container = document.getElementById('mapContainer');
+    panel.classList.add('visible');
+
+    // Geocode comparables that lack coordinates (AI rarely provides comp coords)
+    const comps = Array.isArray(v.comparables) ? v.comparables : [];
+    const geocodePromises = comps.map(async (c) => {
+        const cLat = parseFloat(c.latitude);
+        const cLng = parseFloat(c.longitude);
+        if (!isNaN(cLat) && !isNaN(cLng)) return c; // already has coords
+        const addr = String(c.address || '').trim();
+        if (!addr) return c;
+        const geo = await geocodeAddressToCoords(addr);
+        if (geo) {
+            c.latitude = geo.lat;
+            c.longitude = geo.lng;
+            console.log('[map] geocoded comp:', addr, '->', geo.lat, geo.lng);
+        }
+        return c;
+    });
+    const geocodedComps = await Promise.all(geocodePromises);
+
+    // ── Verify & filter comps ──
+    // Each comp gets a _coordStatus: 'verified' | 'suspect' | 'none'
+    const compsWithCoords = [];
+    geocodedComps.forEach(c => {
+        const cLat = parseFloat(c.latitude);
+        const cLng = parseFloat(c.longitude);
+        if (isNaN(cLat) || isNaN(cLng)) {
+            c._coordStatus = 'none';
+            return;
+        }
+        // UK bounds filter — reject coords outside the UK entirely
+        if (cLat < UK_BOUNDS.latMin || cLat > UK_BOUNDS.latMax ||
+            cLng < UK_BOUNDS.lngMin || cLng > UK_BOUNDS.lngMax) {
+            console.warn('[map] dropping non-UK comp:', c.address, cLat, cLng);
+            c._coordStatus = 'none';
+            c.latitude = null;
+            c.longitude = null;
+            return;
+        }
+        // Distance sanity check — flag comps far from subject as suspect
+        const distKm = haversineKm(lat, lng, cLat, cLng);
+        c._distFromSubjectKm = Math.round(distKm * 10) / 10;
+        if (distKm > 50) {
+            console.warn('[map] comp far from subject (' + distKm.toFixed(1) + 'km):', c.address);
+            c._coordStatus = 'suspect';
+        } else {
+            c._coordStatus = 'verified';
+        }
+        compsWithCoords.push(c);
+    });
+    console.log('[map]', compsWithCoords.length, 'of', comps.length, 'comps have valid UK coordinates');
+
+    // Determine which comp types are plottable
+    const saleWithCoords = compsWithCoords.filter(c => !c.comp_type || String(c.comp_type).toLowerCase() === 'sale');
+    const rentWithCoords = compsWithCoords.filter(c => String(c.comp_type || '').toLowerCase() === 'rental');
+    const saleTotal = comps.filter(c => !c.comp_type || String(c.comp_type).toLowerCase() === 'sale').length;
+    const rentTotal = comps.filter(c => String(c.comp_type || '').toLowerCase() === 'rental').length;
+
+    // Build fallback messages for unplottable comp types
+    let noCompsMsg = '';
+    if (compsWithCoords.length === 0 && comps.length > 0) {
+        noCompsMsg = 'Comparable plotting unavailable — no coordinates could be determined';
+    } else {
+        const parts = [];
+        if (saleTotal > 0 && saleWithCoords.length === 0) parts.push('Sale Comps plotting unavailable');
+        if (rentTotal > 0 && rentWithCoords.length === 0) parts.push('Rent Comps plotting unavailable');
+        noCompsMsg = parts.join(' · ');
+    }
+
+    // Create iframe pointing to PHP-served map page (sets its own CSP)
+    _mapIframeReady = false;
+    container.innerHTML = '<iframe id="mapIframe" src="../api/map-frame.php" style="width:100%;height:100%;border:none;" allow="" loading="eager"></iframe>';
+    // Overlay message if some comp types can't be plotted
+    if (noCompsMsg) {
+        const overlay = document.createElement('div');
+        overlay.className = 'map-no-comps';
+        overlay.textContent = noCompsMsg;
+        container.style.position = 'relative';
+        container.appendChild(overlay);
+    }
+
+    const iframe = document.getElementById('mapIframe');
+    iframe.addEventListener('load', () => {
+        // Once iframe loaded, send map data via postMessage
+        const initData = {
+            type: 'init',
+            token: MAPBOX_TOKEN,
+            lat: lat,
+            lng: lng,
+            theme: document.documentElement.classList.contains('light-mode') ? 'light' : 'dark',
+            address: fmtVal(v.address) || '',
+            marketValue: fmtVal(v.market_value) || '',
+            marketRent: fmtVal(v.market_rent) || '',
+            sqft: v.sqft || '',
+            comparables: compsWithCoords
+        };
+        console.log('[map] sending init to iframe with', compsWithCoords.length, 'verified comparables');
+        iframe.contentWindow.postMessage(initData, '*');
+    });
+}
+
+/* ── Toggle sale/rent comp markers (via postMessage to iframe) ── */
+function toggleMapLayer(type) {
+    if (type === 'sale') {
+        _saleVisible = !_saleVisible;
+        document.getElementById('toggleSaleComps').classList.toggle('active', _saleVisible);
+        postToMapFrame({ type: 'toggle-sale' });
+    } else {
+        _rentVisible = !_rentVisible;
+        document.getElementById('toggleRentComps').classList.toggle('active', _rentVisible);
+        postToMapFrame({ type: 'toggle-rent' });
+    }
+}
+
+/* ── 3D toggle ── */
+function toggleMap3D() {
+    _mapIs3D = !_mapIs3D;
+    document.getElementById('toggle3D').classList.toggle('active', _mapIs3D);
+    postToMapFrame({ type: 'toggle-3d' });
+}
+
+function closeMap() {
+    document.getElementById('mapPanel').classList.remove('visible');
+    const container = document.getElementById('mapContainer');
+    if (container) container.innerHTML = '';
+    _mapIframeReady = false;
+}
+
+/* ═══════════════════════════════════════════
+   PROCESSING & TOAST
+   ═══════════════════════════════════════════ */
+function showProcessing(on) {
+    document.getElementById('processingOverlay').classList.toggle('visible', on);
+    if (on) {
+        document.getElementById('processingLabel').innerHTML = 'Analysing valuation report&hellip;';
+        document.getElementById('processingSub').innerHTML = 'Uploading PDF&hellip;';
+        document.querySelectorAll('.proc-step').forEach(s => { s.classList.remove('active','done'); });
+        markStep('stepUpload', 'active');
+    }
+}
+function updateProcessingStep(msg) {
+    const sub = document.getElementById('processingSub');
+    if (sub) sub.innerHTML = msg;
+}
+function markStep(id, state) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','done');
+    el.classList.add(state);
+}
+
+let _toastTimer;
+function showToast(msg, type = 'error') {
+    const t = document.getElementById('toast');
+    t.className = 'toast visible ' + type;
+    document.getElementById('toast-text').textContent = msg;
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { t.className = 'toast'; }, 4000);
+}
+
+/* ═══════════════════════════════════════════
+   LINK VALUATION TO CASE
+   ═══════════════════════════════════════════ */
+let _valLinkedCases = [];         // [{ id, ref, borrower, address, source }]
+let _valSelectedCases = [];       // staged multi-select before saving
+let _valCaseSearchDebounce = null;
+
+function escAttr(s) { return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
+function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderValCaseSection() {
+    const el = document.getElementById('sidebarCaseSection');
+    if (!el) return;
+
+    // Only show when a valuation is active
+    if (!_sidebarActiveId && !_lastValuation) { el.innerHTML = ''; return; }
+
+    let html = '<h4>Link to Case</h4>';
+
+    // Already-linked cases
+    if (_valLinkedCases.length) {
+        _valLinkedCases.forEach((c, idx) => {
+            const caseRefNum = String(c.ref || c.id || '').replace(/^CASE-/i, '');
+            const isCmsCase = c.source === 'case' || c.source === 'linked';
+            const openLink = isCmsCase && caseRefNum
+                ? '<a href="../case-management.html?case=' + encodeURIComponent(caseRefNum) + '" class="vlc-open" target="_blank" title="Open case">Open Case &rarr;</a>'
+                : '';
+            html += '<div class="val-linked-case">' +
+                '<div class="vlc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>' +
+                '<div class="vlc-info"><div class="vlc-name">' + escHtml(c.borrower || c.ref || c.id) + '</div>' +
+                '<div class="vlc-detail">' + escHtml(c.ref || '') + (c.address ? ' \u00b7 ' + escHtml(c.address) : '') + '</div>' +
+                openLink + '</div>' +
+                '<button class="vlc-clear" onclick="unlinkValCase(' + idx + ')" title="Unlink">&times;</button>' +
+            '</div>';
+        });
+    }
+
+    // Selected (pending) cases
+    if (_valSelectedCases.length) {
+        html += '<div class="val-selected-cases">';
+        _valSelectedCases.forEach((c, idx) => {
+            html += '<div class="val-selected-case-tag"><span>' + escHtml(c.borrower || c.ref || c.id) + '</span>' +
+                '<button onclick="removeSelectedValCase(' + idx + ')" title="Remove">&times;</button></div>';
+        });
+        html += '</div>';
+        html += '<button class="val-link-btn" onclick="saveValCaseLinks()">Link to Case' + (_valSelectedCases.length > 1 ? 's' : '') + '</button>';
+    }
+
+    html += '<div class="val-case-search-wrap" id="valCaseSearchWrap">' +
+        '<svg class="vcs-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><line x1="10" y1="10" x2="14" y2="14"/></svg>' +
+        '<input type="text" class="val-case-search-input" id="valCaseSearchInput" placeholder="Search case by borrower, address, ref\u2026" oninput="onValCaseSearch(this.value)" onfocus="onValCaseSearch(this.value)" autocomplete="off">' +
+        '<button class="val-case-search-clear" id="valCaseSearchClear" onclick="clearValCaseSearch()">&times;</button>' +
+        '<div class="val-case-search-results" id="valCaseSearchResults"></div>' +
+    '</div>';
+
+    el.innerHTML = html;
+}
+
+function onValCaseSearch(val) {
+    const q = (val || '').trim().toLowerCase();
+    const clearBtn = document.getElementById('valCaseSearchClear');
+    if (clearBtn) clearBtn.classList.toggle('visible', !!q);
+    const resultsEl = document.getElementById('valCaseSearchResults');
+    if (!q || q.length < 2) {
+        if (resultsEl) resultsEl.classList.remove('visible');
+        return;
+    }
+    clearTimeout(_valCaseSearchDebounce);
+    _valCaseSearchDebounce = setTimeout(() => renderValCaseSearchResults(q), 120);
+}
+
+async function renderValCaseSearchResults(q) {
+    const resultsEl = document.getElementById('valCaseSearchResults');
+    if (!resultsEl || !_sbClient) return;
+    const wildcard = '%' + q + '%';
+
+    try {
+        const [p1, p2] = await Promise.all([
+            _sbClient.from('pipeline_items')
+                .select('ref_raw, monday_item_id, borrower_name, ref_number, address')
+                .or('borrower_name.ilike.' + wildcard + ',ref_number.ilike.' + wildcard + ',address.ilike.' + wildcard + ',ref_raw.ilike.' + wildcard)
+                .order('borrower_name', { ascending: true }).limit(20),
+            _sbClient.from('cases')
+                .select('id, ref_number, borrower_name, primary_address')
+                .or('borrower_name.ilike.' + wildcard + ',ref_number.ilike.' + wildcard + ',primary_address.ilike.' + wildcard)
+                .order('borrower_name', { ascending: true }).limit(20)
+        ]);
+
+        const matches = [];
+        (p1.data || []).forEach(r => {
+            matches.push({ id: r.ref_raw || ('M-' + r.monday_item_id), borrower: r.borrower_name || 'Unknown', ref: r.ref_number || '', address: r.address || '', source: 'pipeline' });
+        });
+        (p2.data || []).forEach(r => {
+            matches.push({ id: 'CASE-' + r.ref_number, borrower: r.borrower_name || 'Unknown', ref: r.ref_number || '', address: r.primary_address || '', source: 'case' });
+        });
+
+        if (!matches.length) {
+            resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-dim);font-size:11px;">No matches</div>';
+        } else {
+            resultsEl.innerHTML = matches.map(m =>
+                '<div class="val-case-result-item" onclick="selectValCase(\'' + escAttr(m.id) + '\',\'' + escAttr(m.borrower) + '\',\'' + escAttr(m.ref) + '\',\'' + escAttr(m.address) + '\',\'' + escAttr(m.source) + '\')">' +
+                '<div class="val-case-result-borrower">' + escHtml(m.borrower) + '</div>' +
+                '<div class="val-case-result-detail">' + escHtml(m.ref ? m.ref + ' \u00b7 ' : '') + escHtml(m.address || '') + '</div>' +
+                '<span class="val-case-result-source ' + m.source + '">' + m.source + '</span></div>'
+            ).join('');
+        }
+        positionValCaseSearchResults();
+        resultsEl.classList.add('visible');
+    } catch (err) {
+        console.warn('[val-case] search error:', err);
+        resultsEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-dim);font-size:11px;">Search error</div>';
+        positionValCaseSearchResults();
+        resultsEl.classList.add('visible');
+    }
+}
+
+function positionValCaseSearchResults() {
+    const input = document.getElementById('valCaseSearchInput');
+    const resultsEl = document.getElementById('valCaseSearchResults');
+    if (!input || !resultsEl) return;
+    const rect = input.getBoundingClientRect();
+    resultsEl.style.left = rect.left + 'px';
+    resultsEl.style.width = rect.width + 'px';
+    resultsEl.style.top = 'auto';
+    resultsEl.style.bottom = (window.innerHeight - rect.top) + 'px';
+}
+
+function selectValCase(id, borrower, ref, address, source) {
+    const existsLinked = _valLinkedCases.some(c => c.id === id);
+    const existsSelected = _valSelectedCases.some(c => c.id === id);
+    if (!existsLinked && !existsSelected) {
+        _valSelectedCases.push({ id, borrower, ref, address, source });
+    }
+    const input = document.getElementById('valCaseSearchInput');
+    if (input) input.value = '';
+    const resultsEl = document.getElementById('valCaseSearchResults');
+    if (resultsEl) resultsEl.classList.remove('visible');
+    renderValCaseSection();
+}
+
+function removeSelectedValCase(idx) {
+    if (_valSelectedCases[idx] === undefined) return;
+    _valSelectedCases.splice(idx, 1);
+    renderValCaseSection();
+}
+
+function clearValCaseSearch() {
+    const input = document.getElementById('valCaseSearchInput');
+    if (input) { input.value = ''; onValCaseSearch(''); input.focus(); }
+    const resultsEl = document.getElementById('valCaseSearchResults');
+    if (resultsEl) resultsEl.classList.remove('visible');
+}
+
+async function saveValCaseLinks() {
+    if (!_valSelectedCases.length || !_sbClient) return;
+    const valuationId = _sidebarActiveId;
+    if (!valuationId) { showToast('No valuation selected', 'error'); return; }
+
+    try {
+        const rows = _valSelectedCases.map(c => {
+            const caseRef = c.ref || c.id;
+            const caseLabel = c.borrower ? (c.borrower + ' \u2013 ' + caseRef) : caseRef;
+            return {
+                valuation_id: valuationId,
+                case_ref: caseRef,
+                case_label: caseLabel,
+                case_source: c.source || null,
+            };
+        });
+
+        const { error } = await _sbClient
+            .from('valuation_case_links')
+            .upsert(rows, { onConflict: 'valuation_id,case_ref' });
+
+        if (error) throw error;
+
+        _valLinkedCases = await fetchValCaseLinks(valuationId);
+        if (_valLinkedCases.length > 0) {
+            const first = _valLinkedCases[0];
+            await _sbClient.from('valuations').update({
+                linked_case_ref: first.ref || first.id,
+                linked_case_label: first.borrower || first.ref || first.id,
+                linked_case_source: first.source || null,
+            }).eq('id', valuationId);
+        }
+
+        const linkedCount = _valSelectedCases.length;
+        _valSelectedCases = [];
+        showToast('Linked to ' + linkedCount + ' case' + (linkedCount > 1 ? 's' : ''), 'success');
+        renderValCaseSection();
+
+        // Auto-deliver: push valuation figures into matching case properties
+        await _autoDeliverValuationToCases(valuationId, rows);
+    } catch (err) {
+        showToast('Failed to link: ' + (err.message || err), 'error');
+        console.error('[val-case] save:', err);
+    }
+}
+
+/**
+ * After linking a valuation to case(s), check if the valuation address matches
+ * a property on the case. If so, auto-set that property's stage to 'delivered'
+ * and populate the delivered values from the valuation report.
+ */
+async function _autoDeliverValuationToCases(valuationId, linkRows) {
+    if (!_sbClient || !valuationId) return;
+    try {
+        // Fetch the full valuation record
+        const { data: valRec, error: valErr } = await _sbClient
+            .from('valuations')
+            .select('address, market_value, market_value_90_day, market_value_180_day, market_rent, gdv, cost_of_works, reinstatement_value')
+            .eq('id', valuationId)
+            .single();
+        if (valErr || !valRec) return;
+
+        const valAddr = _normaliseAddr(valRec.address);
+        if (!valAddr) return;
+
+        const parseMoney = (v) => {
+            if (!v) return '';
+            const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+            return (n && n > 0) ? String(n) : '';
+        };
+
+        for (const link of linkRows) {
+            const caseRef = link.case_ref;
+            if (!caseRef || link.case_source !== 'case') continue;
+
+            // Extract numeric ref from 'CASE-00123' format
+            const refNum = caseRef.replace(/^CASE-/i, '');
+            const { data: caseRow, error: caseErr } = await _sbClient
+                .from('cases')
+                .select('id, form_state')
+                .eq('ref_number', refNum)
+                .single();
+            if (caseErr || !caseRow || !caseRow.form_state) continue;
+
+            const fs = caseRow.form_state;
+            const props = Array.isArray(fs.properties) ? fs.properties : [];
+            const valState = fs.valuation || { properties: [] };
+            const valProps = Array.isArray(valState.properties) ? valState.properties : [];
+            let matched = false;
+
+            for (let i = 0; i < props.length; i++) {
+                const propAddr = _normaliseAddr(props[i].addr);
+                if (!propAddr || !_addrMatch(valAddr, propAddr)) continue;
+
+                // Found matching property — update valuation state for this property
+                let vp = valProps.find(vp => vp.propIdx === (i + 1));
+                if (!vp) {
+                    vp = { propIdx: i + 1, addr: props[i].addr || ('Property ' + (i + 1)), stage: 'valuation', rows: [], deliveredValues: {}, reviewed: false, valuationType: '' };
+                    valProps.push(vp);
+                }
+
+                const VAL_STAGES = ['valuation','quote-pending','quote-received','instructed','booked','delivered','reviewed'];
+                if (VAL_STAGES.indexOf(vp.stage) < VAL_STAGES.indexOf('delivered')) {
+                    vp.stage = 'delivered';
+                }
+                vp.deliveredValues = vp.deliveredValues || {};
+                vp.deliveredValues.mv = parseMoney(valRec.market_value) || vp.deliveredValues.mv || '';
+                vp.deliveredValues.mv180 = parseMoney(valRec.market_value_180_day) || vp.deliveredValues.mv180 || '';
+                vp.deliveredValues.mv90 = parseMoney(valRec.market_value_90_day) || vp.deliveredValues.mv90 || '';
+                vp.deliveredValues.marketRent = parseMoney(valRec.market_rent) || vp.deliveredValues.marketRent || '';
+                vp.deliveredValues.gdv = parseMoney(valRec.gdv) || vp.deliveredValues.gdv || '';
+                vp.deliveredValues.cow = parseMoney(valRec.cost_of_works) || vp.deliveredValues.cow || '';
+
+                // Also populate the calculator property fields
+                if (parseMoney(valRec.market_value)) props[i].omv = parseMoney(valRec.market_value);
+                if (parseMoney(valRec.market_value_180_day)) props[i]['mv180'] = parseMoney(valRec.market_value_180_day);
+                if (parseMoney(valRec.gdv)) props[i].gdv = parseMoney(valRec.gdv);
+                if (parseMoney(valRec.cost_of_works)) props[i].cw = parseMoney(valRec.cost_of_works);
+
+                // Store linked valuation ID on the valuation-state property
+                vp.linkedValuationId = valuationId;
+
+                matched = true;
+                console.log('[val-link] auto-delivered property', i + 1, props[i].addr);
+            }
+
+            if (matched) {
+                valState.properties = valProps;
+                fs.valuation = valState;
+
+                // Compute global stage (min across all properties)
+                const VAL_STAGES = ['valuation','quote-pending','quote-received','instructed','booked','delivered','reviewed'];
+                let minIdx = VAL_STAGES.length - 1;
+                for (const vp of valProps) {
+                    const idx = VAL_STAGES.indexOf(vp.stage);
+                    if (idx >= 0 && idx < minIdx) minIdx = idx;
+                }
+                const globalStage = VAL_STAGES[minIdx];
+
+                // Persist form_state + sub_stage
+                await _sbClient.from('cases').update({
+                    form_state: fs,
+                    sub_stage: globalStage
+                }).eq('id', caseRow.id);
+
+                // Also upsert case_valuations
+                await _sbClient.from('case_valuations').upsert({
+                    case_id: caseRow.id,
+                    full_val_state: valState,
+                    val_stage: globalStage
+                }, { onConflict: 'case_id' }).then(() => {});
+
+                showToast('Valuation figures auto-populated on case ' + refNum, 'success');
+            }
+        }
+    } catch (err) {
+        console.warn('[val-link] auto-deliver error:', err);
+    }
+}
+
+function _normaliseAddr(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function _addrMatch(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    // Substring match (one contains the other)
+    if (a.length > 10 && b.length > 10) {
+        if (a.includes(b) || b.includes(a)) return true;
+    }
+    return false;
+}
+
+async function unlinkValCase(idx) {
+    if (!_sbClient || !_sidebarActiveId) return;
+    const target = _valLinkedCases[idx];
+    if (!target) return;
+    try {
+        const caseRef = target.ref || target.id;
+        const { error } = await _sbClient
+            .from('valuation_case_links')
+            .delete()
+            .eq('valuation_id', _sidebarActiveId)
+            .eq('case_ref', caseRef);
+        if (error) throw error;
+
+        _valLinkedCases = await fetchValCaseLinks(_sidebarActiveId);
+        const first = _valLinkedCases[0] || null;
+        await _sbClient.from('valuations').update({
+            linked_case_ref: first ? (first.ref || first.id) : null,
+            linked_case_label: first ? (first.borrower || first.ref || first.id) : null,
+            linked_case_source: first ? (first.source || null) : null,
+        }).eq('id', _sidebarActiveId);
+
+        showToast('Case link removed', 'info');
+        renderValCaseSection();
+    } catch (err) {
+        showToast('Failed to unlink', 'error');
+    }
+}
+
+async function fetchValCaseLinks(valuationId) {
+    if (!_sbClient || !valuationId) return [];
+    try {
+        const { data, error } = await _sbClient
+            .from('valuation_case_links')
+            .select('case_ref, case_label, case_source, created_at')
+            .eq('valuation_id', valuationId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(row => ({
+            id: row.case_ref,
+            ref: row.case_ref,
+            borrower: row.case_label || row.case_ref,
+            address: '',
+            source: row.case_source || 'linked',
+        }));
+    } catch (_) {
+        return [];
+    }
+}
+
+async function loadValCaseLinks(valuationId, valuationData) {
+    _valLinkedCases = await fetchValCaseLinks(valuationId);
+    _valSelectedCases = [];
+
+    // Backward compatibility: if no rows in link table, fall back to legacy single link fields
+    if (_valLinkedCases.length === 0 && valuationData && valuationData.linked_case_ref) {
+        _valLinkedCases = [{
+            id: valuationData.linked_case_ref,
+            ref: valuationData.linked_case_ref,
+            borrower: valuationData.linked_case_label || valuationData.linked_case_ref,
+            address: '',
+            source: valuationData.linked_case_source || 'linked',
+        }];
+    }
+    renderValCaseSection();
+}
+
+// Close search dropdown on outside click
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('valCaseSearchWrap');
+    const res = document.getElementById('valCaseSearchResults');
+    if (wrap && res && !wrap.contains(e.target)) res.classList.remove('visible');
+});
+
+/* ═══════════════════════════════════════════
+   RESET
+   ═══════════════════════════════════════════ */
+function resetAll() {
+    closePreview();
+    closeDetails();
+    closeComps();
+    closeMap();
+    images = [];
+    currentIdx = 0;
+    pendingFile = null;
+    fileInput.value = '';
+    _lastValuation = null;
+    _sidebarActiveId = null;
+    _valLinkedCases = [];
+    _valSelectedCases = [];
+    document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('detailsAddress').textContent = '';
+    renderValCaseSection();
+}
+
+/* ═══════════════════════════════════════════
+   RECENT VALUATIONS SIDEBAR
+   ═══════════════════════════════════════════ */
+let _sidebarValuations = [];
+let _sidebarActiveId = null;
+let _sbClient = null;
+
+async function initSidebar() {
+    try {
+        // Use the global Supabase client from supabase-client.js
+        _sbClient = window.supabaseClient || (typeof _sb !== 'undefined' ? _sb : null);
+        if (!_sbClient) throw new Error('Supabase client not available');
+        await loadRecentValuations();
+    } catch (e) {
+        console.error('[sidebar] init failed:', e);
+        showSidebarEmpty('Could not connect to database');
+    }
+}
+
+async function loadRecentValuations() {
+    if (!_sbClient) return;
+    const loading = document.getElementById('sidebarLoading');
+    if (loading) loading.style.display = '';
+
+    try {
+        const { data, error } = await _sbClient
+            .from('valuations')
+            .select('id, address, source_filename, property_type, case_type, market_value, created_at, linked_case_ref, linked_case_label')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (error) throw error;
+        _sidebarValuations = data || [];
+        renderSidebarList(_sidebarValuations);
+    } catch (e) {
+        console.error('[sidebar] load failed:', e);
+        showSidebarEmpty('Failed to load valuations');
+    }
+}
+
+function renderSidebarList(items) {
+    const list = document.getElementById('sidebarList');
+    const countEl = document.getElementById('sidebarCount');
+    const loading = document.getElementById('sidebarLoading');
+    if (loading) loading.style.display = 'none';
+    countEl.textContent = items.length;
+
+    if (!items.length) {
+        showSidebarEmpty('No valuations found');
+        return;
+    }
+
+    // Remove existing items (keep loading skeleton hidden)
+    list.querySelectorAll('.sidebar-item, .sidebar-empty').forEach(el => el.remove());
+
+    items.forEach(v => {
+        const div = document.createElement('div');
+        div.className = 'sidebar-item' + (v.id === _sidebarActiveId ? ' active' : '');
+        div.dataset.id = v.id;
+
+        const addr = v.address || 'Unknown Address';
+        const fname = v.source_filename || '';
+        const mv = v.market_value || '';
+        const caseType = (v.case_type || 'Standard').toLowerCase();
+        const cls = caseType === 'sme' ? 'sme' : caseType === 'refurb' ? 'refurb' : 'standard';
+        const ago = timeAgo(v.created_at);
+
+        const linkedRef = v.linked_case_ref || '';
+        const linkedLabel = v.linked_case_label || '';
+        const caseLink = linkedRef
+            ? `<a href="../case-management.html?case=${encodeURIComponent(linkedRef.replace(/^CASE-/i,''))}" class="sidebar-item-case-link" onclick="event.stopPropagation()" target="_blank" title="${esc(linkedLabel || linkedRef)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                ${esc(linkedLabel || linkedRef)}</a>`
+            : '';
+
+        div.innerHTML = `<div class="sidebar-item-address" title="${esc(addr)}">${esc(addr)}</div>`
+            + (fname ? `<div class="sidebar-item-file" title="${esc(fname)}">${esc(fname)}</div>` : '')
+            + `<div class="sidebar-item-meta">`
+            + (mv ? `<span class="sidebar-item-value">${esc(mv)}</span>` : '')
+            + `<span class="sidebar-item-type ${cls}">${esc(v.case_type || 'Standard')}</span>`
+            + `<span>${esc(ago)}</span>`
+            + `</div>`
+            + caseLink;
+
+        div.addEventListener('click', () => loadSidebarValuation(v.id));
+        list.appendChild(div);
+    });
+}
+
+function showSidebarEmpty(msg) {
+    const list = document.getElementById('sidebarList');
+    const loading = document.getElementById('sidebarLoading');
+    if (loading) loading.style.display = 'none';
+    list.querySelectorAll('.sidebar-item, .sidebar-empty').forEach(el => el.remove());
+    const empty = document.createElement('div');
+    empty.className = 'sidebar-empty';
+    empty.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+        + `<span>${esc(msg)}</span>`;
+    list.appendChild(empty);
+}
+
+async function loadSidebarValuation(id) {
+    if (!_sbClient) return;
+    _sidebarActiveId = id;
+
+    // Highlight active item
+    document.querySelectorAll('.sidebar-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.id === id);
+    });
+
+    // Hide drop zone and show skeleton details
+    dropZone.style.display = 'none';
+    openDetails(null);
+
+    try {
+        const { data, error } = await _sbClient
+            .from('valuations')
+            .select('*')
+            .eq('id', id)
+            .single();
+        if (error) throw error;
+        if (!data) throw new Error('Not found');
+
+        // Reconstruct the valuation object using raw_payload for full data (comparables etc.)
+        const valuation = data.raw_payload && typeof data.raw_payload === 'object'
+            ? { ...data.raw_payload }
+            : {};
+
+        // Overlay DB columns (canonical values) over raw payload
+        valuation.address = data.address || valuation.address;
+        valuation.property_type = data.property_type || valuation.property_type;
+        valuation.property_subtype = data.property_subtype || valuation.property_subtype;
+        valuation.case_type = data.case_type || valuation.case_type;
+        valuation.market_value = data.market_value || valuation.market_value;
+        valuation.market_value_90_day = data.market_value_90_day || valuation.market_value_90_day;
+        valuation.market_value_180_day = data.market_value_180_day || valuation.market_value_180_day;
+        valuation.market_rent = data.market_rent || valuation.market_rent;
+        valuation.gdv = data.gdv || valuation.gdv;
+        valuation.cost_of_works = data.cost_of_works || valuation.cost_of_works;
+        valuation.valuation_method = data.valuation_method || valuation.valuation_method;
+        valuation.reinstatement_value = data.reinstatement_value || valuation.reinstatement_value;
+        valuation.sqft = data.sqft || valuation.sqft;
+        valuation.bedrooms = data.bedrooms || valuation.bedrooms;
+        valuation.bathrooms = data.bathrooms || valuation.bathrooms;
+        valuation.living_rooms = data.living_rooms || valuation.living_rooms;
+        valuation.tenure_type = data.tenure_type || valuation.tenure_type;
+        valuation.lease_years_remaining = data.lease_years_remaining || valuation.lease_years_remaining;
+        valuation.occupancy = data.occupancy || valuation.occupancy;
+        valuation.property_condition = data.property_condition || valuation.property_condition;
+        valuation.latitude = data.latitude || valuation.latitude;
+        valuation.longitude = data.longitude || valuation.longitude;
+        valuation.location_summary = data.location_summary || valuation.location_summary;
+        valuation.property_summary = data.property_summary || valuation.property_summary;
+        valuation.comparable_summary = data.comparable_summary || valuation.comparable_summary;
+        valuation.flags = data.flags || valuation.flags || [];
+        valuation.risk_flags_structured = data.risk_flags_structured || valuation.risk_flags_structured || [];
+        valuation.title_numbers = data.title_numbers || valuation.title_numbers || [];
+
+        // Open panels
+        openDetails(valuation);
+        openComps(valuation);
+        openMap(valuation);
+
+        // Load case links for the valuation
+        loadValCaseLinks(id, data);
+
+        // Load images from Supabase storage if available
+        loadSidebarImages(id, data.address);
+
+    } catch (e) {
+        console.error('[sidebar] load valuation failed:', e);
+        openDetails({ error: 'Failed to load valuation: ' + (e.message || e) });
+    }
+}
+
+async function loadSidebarImages(valuationId, address) {
+    if (!_sbClient || !address) { openPreviewEmpty(); return; }
+    try {
+        // Build address_key the same way PHP does: lowercase, strip non-alnum, hyphenate
+        const addressKey = address.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+        const pickLatestSet = (rows) => {
+            if (!Array.isArray(rows) || rows.length === 0) return [];
+            const latestSet = rows[0]?.set_key || null;
+            if (!latestSet) return rows;
+            return rows
+                .filter(r => (r.set_key || null) === latestSet)
+                .sort((a, b) => (a.image_index || 0) - (b.image_index || 0));
+        };
+
+        // Try by valuation_id first, fall back to address_key
+        let imgMeta = null;
+        if (valuationId) {
+            const r1 = await _sbClient
+                .from('valuation_images')
+                .select('id, storage_path, image_index, meta, set_key, created_at')
+                .eq('valuation_id', valuationId)
+                .order('created_at', { ascending: false })
+                .limit(30);
+            if (!r1.error && r1.data && r1.data.length > 0) imgMeta = pickLatestSet(r1.data);
+        }
+        if (!imgMeta || imgMeta.length === 0) {
+            const r2 = await _sbClient
+                .from('valuation_images')
+                .select('id, storage_path, image_index, meta, set_key, created_at')
+                .eq('address_key', addressKey)
+                .order('created_at', { ascending: false })
+                .limit(30);
+            if (r2.error) throw r2.error;
+            imgMeta = pickLatestSet(r2.data || []);
+        }
+        if (!imgMeta || imgMeta.length === 0) { openPreviewEmpty(); return; }
+
+        // Generate signed URLs and load images
+        const loaded = [];
+        let signFailures = 0;
+        for (const img of imgMeta) {
+            try {
+                const { data: signedData, error: signErr } = await _sbClient.storage
+                    .from('valuation-images')
+                    .createSignedUrl(img.storage_path, 3600);
+                if (signErr || !signedData?.signedUrl) { signFailures++; continue; }
+                const imgRes = await fetch(signedData.signedUrl);
+                if (!imgRes.ok) continue;
+                const blob = await imgRes.blob();
+                const b64 = await blobToBase64(blob);
+                const m = img.meta || {};
+                loaded.push({
+                    base64: b64,
+                    page: m.page || img.image_index,
+                    width: m.width || null,
+                    height: m.height || null,
+                    rotation: normalizeRotation(m.rotation_degrees || 0),
+                    storagePath: img.storage_path || '',
+                    dbId: img.id || null,
+                    _meta: m
+                });
+            } catch (_) {}
+        }
+
+        if (loaded.length > 0) {
+            images = loaded;
+            currentIdx = 0;
+            openPreview();
+        } else {
+            if (imgMeta.length > 0 && signFailures === imgMeta.length) {
+                showToast('Stored images found, but access is denied by storage policy.', 'error');
+            }
+            openPreviewEmpty();
+        }
+    } catch (_) {
+        openPreviewEmpty();
+    }
+}
+
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result || '';
+            resolve(result.split(',')[1] || '');
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    const diff = Math.max(0, now - then);
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return days + 'd ago';
+    const months = Math.floor(days / 30);
+    return months + 'mo ago';
+}
+
+// Sidebar search filter
+document.getElementById('sidebarSearch').addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    if (!q) { renderSidebarList(_sidebarValuations); return; }
+    const filtered = _sidebarValuations.filter(v =>
+        (v.address || '').toLowerCase().includes(q) ||
+        (v.source_filename || '').toLowerCase().includes(q) ||
+        (v.market_value || '').toLowerCase().includes(q)
+    );
+    renderSidebarList(filtered);
+});
+
+// Refresh button
+document.getElementById('sidebarRefresh').addEventListener('click', async function() {
+    this.classList.add('spinning');
+    await loadRecentValuations();
+    setTimeout(() => this.classList.remove('spinning'), 400);
+});
+
+// Init sidebar on load
+initSidebar();
+
+// Deep-link: auto-load valuation from URL hash (#val=UUID)
+(function checkDeepLink() {
+    const hash = window.location.hash || '';
+    const m = hash.match(/^#val=(.+)$/);
+    if (m) {
+        const valId = decodeURIComponent(m[1]);
+        // Wait for sidebar init, then load the valuation
+        const _waitForSb = setInterval(() => {
+            if (_sbClient) {
+                clearInterval(_waitForSb);
+                loadSidebarValuation(valId);
+                // Clear hash to avoid re-loading on refresh
+                history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+        }, 200);
+        // Timeout after 5s
+        setTimeout(() => clearInterval(_waitForSb), 5000);
+    }
+})();
+
+/* ═══════════════════════════════════════════
+   DISABLE RIGHT-CLICK + CUSTOM IMAGE CONTEXT MENU
+   ═══════════════════════════════════════════ */
+(function initImageContextMenu() {
+    const ctxMenu = document.getElementById('imgCtxMenu');
+    let _ctxTargetIdx = -1;
+
+    // Disable default right-click everywhere
+    document.addEventListener('contextmenu', e => {
+        // Allow on images in preview or thumbnail strip
+        const img = e.target.closest('#previewBody img, .thumb img');
+        if (img) {
+            e.preventDefault();
+            // Determine which image index was right-clicked
+            const thumb = e.target.closest('.thumb');
+            if (thumb) {
+                const allThumbs = Array.from(document.querySelectorAll('.thumb'));
+                _ctxTargetIdx = allThumbs.indexOf(thumb);
+            } else {
+                _ctxTargetIdx = currentIdx;
+            }
+            // Position and show menu
+            const x = Math.min(e.clientX, window.innerWidth - 190);
+            const y = Math.min(e.clientY, window.innerHeight - 160);
+            ctxMenu.style.left = x + 'px';
+            ctxMenu.style.top = y + 'px';
+            ctxMenu.classList.add('visible');
+        } else {
+            e.preventDefault();
+            ctxMenu.classList.remove('visible');
+        }
+    });
+
+    // Hide on any click or scroll
+    document.addEventListener('click', () => ctxMenu.classList.remove('visible'));
+    document.addEventListener('scroll', () => ctxMenu.classList.remove('visible'), true);
+
+    // ── Save single image ──
+    window.ctxSaveImage = function() {
+        if (_ctxTargetIdx < 0 || _ctxTargetIdx >= images.length) return;
+        const img = images[_ctxTargetIdx];
+        const link = document.createElement('a');
+        link.href = 'data:image/jpeg;base64,' + img.base64;
+        link.download = 'valuation-photo-' + (_ctxTargetIdx + 1) + '.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Image saved', 'success');
+        ctxMenu.classList.remove('visible');
+    };
+
+    // ── Copy image to clipboard ──
+    window.ctxCopyImage = async function() {
+        if (_ctxTargetIdx < 0 || _ctxTargetIdx >= images.length) return;
+        try {
+            const img = images[_ctxTargetIdx];
+            const byteString = atob(img.base64);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+
+            // Convert to PNG for clipboard (clipboard API requires PNG)
+            const blob = new Blob([ab], { type: 'image/jpeg' });
+            const bitmap = await createImageBitmap(blob);
+            const canvas = document.createElement('canvas');
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            canvas.getContext('2d').drawImage(bitmap, 0, 0);
+            const pngBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': pngBlob })
+            ]);
+            showToast('Image copied to clipboard', 'success');
+        } catch (err) {
+            console.error('Copy failed:', err);
+            showToast('Failed to copy image', 'error');
+        }
+        ctxMenu.classList.remove('visible');
+    };
+
+    // ── Save all images as ZIP ──
+    window.ctxSaveAllZip = async function() {
+        if (!images.length) { showToast('No images to save', 'error'); return; }
+        ctxMenu.classList.remove('visible');
+        showToast('Building ZIP…', 'info');
+
+        try {
+            // Minimal ZIP builder (no external library)
+            const files = images.map((img, i) => ({
+                name: 'valuation-photo-' + (i + 1) + '.jpg',
+                data: Uint8Array.from(atob(img.base64), c => c.charCodeAt(0))
+            }));
+
+            const zip = buildZip(files);
+            const blob = new Blob([zip], { type: 'application/zip' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'valuation-photos.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            showToast(`Saved ${files.length} image${files.length === 1 ? '' : 's'} as ZIP`, 'success');
+        } catch (err) {
+            console.error('ZIP failed:', err);
+            showToast('Failed to create ZIP', 'error');
+        }
+    };
+
+    /**
+     * Minimal ZIP file builder — no dependencies.
+     * Supports Store method (no compression) which is fine for JPEGs.
+     */
+    function buildZip(files) {
+        const encoder = new TextEncoder();
+        let offset = 0;
+        const centralDir = [];
+        const localParts = [];
+
+        for (const file of files) {
+            const nameBytes = encoder.encode(file.name);
+            const crc = crc32(file.data);
+            const size = file.data.length;
+
+            // Local file header (30 + name + data)
+            const local = new Uint8Array(30 + nameBytes.length + size);
+            const lv = new DataView(local.buffer);
+            lv.setUint32(0, 0x04034b50, true);   // signature
+            lv.setUint16(4, 20, true);             // version needed
+            lv.setUint16(6, 0, true);              // flags
+            lv.setUint16(8, 0, true);              // compression: store
+            lv.setUint16(10, 0, true);             // mod time
+            lv.setUint16(12, 0, true);             // mod date
+            lv.setUint32(14, crc, true);           // crc32
+            lv.setUint32(18, size, true);          // compressed size
+            lv.setUint32(22, size, true);          // uncompressed size
+            lv.setUint16(26, nameBytes.length, true);
+            lv.setUint16(28, 0, true);             // extra length
+            local.set(nameBytes, 30);
+            local.set(file.data, 30 + nameBytes.length);
+            localParts.push(local);
+
+            // Central directory entry
+            const cd = new Uint8Array(46 + nameBytes.length);
+            const cv = new DataView(cd.buffer);
+            cv.setUint32(0, 0x02014b50, true);
+            cv.setUint16(4, 20, true);
+            cv.setUint16(6, 20, true);
+            cv.setUint16(8, 0, true);
+            cv.setUint16(10, 0, true);
+            cv.setUint16(12, 0, true);
+            cv.setUint16(14, 0, true);
+            cv.setUint32(16, crc, true);
+            cv.setUint32(20, size, true);
+            cv.setUint32(24, size, true);
+            cv.setUint16(28, nameBytes.length, true);
+            cv.setUint16(30, 0, true);
+            cv.setUint16(32, 0, true);
+            cv.setUint16(34, 0, true);
+            cv.setUint16(36, 0, true);
+            cv.setUint32(38, 0x20, true);  // external attrs
+            cv.setUint32(42, offset, true);
+            cd.set(nameBytes, 46);
+            centralDir.push(cd);
+
+            offset += local.length;
+        }
+
+        const cdSize = centralDir.reduce((s, c) => s + c.length, 0);
+        const eocd = new Uint8Array(22);
+        const ev = new DataView(eocd.buffer);
+        ev.setUint32(0, 0x06054b50, true);
+        ev.setUint16(4, 0, true);
+        ev.setUint16(6, 0, true);
+        ev.setUint16(8, files.length, true);
+        ev.setUint16(10, files.length, true);
+        ev.setUint32(12, cdSize, true);
+        ev.setUint32(16, offset, true);
+        ev.setUint16(20, 0, true);
+
+        const total = offset + cdSize + 22;
+        const out = new Uint8Array(total);
+        let pos = 0;
+        for (const p of localParts) { out.set(p, pos); pos += p.length; }
+        for (const c of centralDir) { out.set(c, pos); pos += c.length; }
+        out.set(eocd, pos);
+        return out;
+    }
+
+    function crc32(data) {
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < data.length; i++) {
+            crc ^= data[i];
+            for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+})();
+</script>
+</body>
+</html>
